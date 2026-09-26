@@ -330,7 +330,7 @@ Item {
       Layout.fillHeight: true
       Layout.preferredWidth: 320
       icon: "mic"
-      heading: "PHONE MICROPHONE"
+      heading: (root.mic && root.mic.mode === "speaker") ? "PHONE AUDIO" : "PHONE MICROPHONE"
       stream: root.mic || ({})
       title: root.mic ? (root.mic.fromName || "The phone") + " is live as " + (root.mic.source || "Flux Microphone") : ""
       detail: root.mic ? Math.round((root.mic.rate || 48000) / 1000) + " kHz · " + (root.mic.channels === 2 ? "stereo" : "mono") : ""

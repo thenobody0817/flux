@@ -31,10 +31,12 @@ object Android {
     const val CHANNEL_COMPUTER = "flux.computer"
     private const val TAG_COMPUTER = "computer"
     const val CHANNEL_APPROVE = "flux.approve"
+    const val CHANNEL_EYEC = "flux.eyec"
     const val ID_SERVICE = 1
     const val ID_PAIR = 2
     const val ID_RING = 3
     const val ID_APPROVE = 4
+    const val ID_EYEC = 5
     private var nextId = 100
 
     fun deviceName(context: Context): String =
@@ -94,6 +96,9 @@ object Android {
         })
         nm.createNotificationChannel(NotificationChannel(CHANNEL_APPROVE, "Approvals", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Asks you to approve sudo on a computer with your fingerprint"
+        })
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_EYEC, "eyec", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Asks you to allow or deny an eyec action on a computer"
         })
     }
 

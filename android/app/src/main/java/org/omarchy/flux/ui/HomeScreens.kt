@@ -293,6 +293,7 @@ fun HomeScreen(
             })
         },
         Action(Ic.music, "Media", "Control what plays", guarded { onNavigate("media") }),
+        Action(Ic.text, "Ask eyec", "Chat with the assistant", guarded { onNavigate("eyec") }),
         Action(Ic.terminal, "Run commands", "Commands you added", guarded { onNavigate("commands") }),
         Action(Ic.folderOpen, "Browse PC", "Open and get files", guarded { onNavigate("browse") }),
         Action(Ic.ring, "Ring PC", "Play a sound to find it", guarded { Plugins.ring(FluxCore, d.id) }),

@@ -213,6 +213,16 @@ func (d *Daemon) Call(ctx context.Context, method string, raw json.RawMessage) (
 		return d.ApproveWait(ctx, p.ID)
 	case "approve.cancel":
 		return ok, d.ApproveCancel(p.ID)
+	case "eyec.permit":
+		return d.EyecPermit(raw)
+	case "eyec.permit.wait":
+		return d.EyecWait(ctx, p.ID)
+	case "eyec.permit.cancel":
+		return ok, d.EyecCancel(p.ID)
+	case "eyec.actions":
+		return d.EyecActions(), nil
+	case "eyec.trigger":
+		return d.EyecTrigger(raw)
 	case "clipboard.copy":
 		if p.Text == "" {
 			return nil, apiErr("bad_params", "text is empty")

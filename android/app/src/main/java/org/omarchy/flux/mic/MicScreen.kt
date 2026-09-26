@@ -65,6 +65,8 @@ fun MicScreen(d: DeviceUi, onBack: () -> Unit) {
     val shown by animateFloatAsState(level, tween(90), label = "level")
     val mine = status.deviceId == null || status.deviceId == d.id
     val active = status.active && status.deviceId == d.id
+    val speakerActive = active && status.mode == MicMode.Speaker
+    val sourceActive = active && status.mode != MicMode.Speaker
 
     // The stream stops when the app goes to the background and when the
     // screen closes. Android gives the microphone only to a visible app.
@@ -95,7 +97,11 @@ fun MicScreen(d: DeviceUi, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
         ) {
             IconBadge(
-                if (active) Ic.micFill else Ic.mic,
+                when {
+                    speakerActive -> Ic.ring
+                    active -> Ic.micFill
+                    else -> Ic.mic
+                },
                 Modifier.scale(1f + shown * 0.25f),
                 container = if (active) scheme.primaryContainer else scheme.secondaryContainer,
                 content = if (active) scheme.onPrimaryContainer else scheme.onSecondaryContainer,
@@ -118,6 +124,7 @@ fun MicScreen(d: DeviceUi, onBack: () -> Unit) {
                 when {
                     active -> status.message
                     mine && status.message.isNotEmpty() -> status.message
+                    d.micSpeaker -> "Ready. Start for microphone input, or Transmit to play on ${d.name}'s speakers."
                     else -> "Ready. Press Start to use this phone as a microphone on ${d.name}."
                 },
                 style = MaterialTheme.typography.bodyLarge,
@@ -130,16 +137,27 @@ fun MicScreen(d: DeviceUi, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(4.dp))
             Button(
-                onClick = { if (active) MicSession.stop(FluxCore, notify = true) else MicSession.start(FluxCore, d.id) },
+                onClick = { if (sourceActive) MicSession.stop(FluxCore, notify = true) else MicSession.start(FluxCore, d.id, MicMode.Source) },
                 modifier = Modifier.height(56.dp).widthIn(min = 220.dp),
-                colors = if (active) ButtonDefaults.buttonColors(containerColor = scheme.errorContainer, contentColor = scheme.onErrorContainer) else ButtonDefaults.buttonColors(),
+                colors = if (sourceActive) ButtonDefaults.buttonColors(containerColor = scheme.errorContainer, contentColor = scheme.onErrorContainer) else ButtonDefaults.buttonColors(),
             ) {
-                Sym(if (active) Ic.stop else Ic.micFill)
+                Sym(if (sourceActive) Ic.stop else Ic.micFill)
                 Spacer(Modifier.size(12.dp))
-                Text(if (active) "Stop microphone" else "Start microphone", style = MaterialTheme.typography.titleMedium)
+                Text(if (sourceActive) "Stop microphone" else "Start microphone", style = MaterialTheme.typography.titleMedium)
+            }
+            if (d.micSpeaker) {
+                OutlinedButton(
+                    onClick = { if (speakerActive) MicSession.stop(FluxCore, notify = true) else MicSession.start(FluxCore, d.id, MicMode.Speaker) },
+                    modifier = Modifier.height(56.dp).widthIn(min = 220.dp),
+                ) {
+                    Sym(if (speakerActive) Ic.stop else Ic.ring)
+                    Spacer(Modifier.size(12.dp))
+                    Text(if (speakerActive) "Stop transmitting" else "Transmit to PC speakers", style = MaterialTheme.typography.titleMedium)
+                }
             }
             Text(
-                "Apps on ${d.name} see this phone as Flux Microphone. Keep this screen open while you talk.",
+                if (d.micSpeaker) "Start exposes this phone as Flux Microphone. Transmit plays it on ${d.name}'s speakers. Keep this screen open."
+                else "Apps on ${d.name} see this phone as Flux Microphone. Keep this screen open while you talk.",
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

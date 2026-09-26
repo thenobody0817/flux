@@ -34,6 +34,8 @@ object MicSession {
         val phase: Phase = Phase.Idle,
         val message: String = "",
         val deviceId: String? = null,
+        /** Source: the Flux Microphone source. Speaker: the computer's output. */
+        val mode: MicMode = MicMode.Source,
     ) {
         val active: Boolean get() = phase == Phase.Connecting || phase == Phase.Starting || phase == Phase.Live
     }
@@ -52,22 +54,25 @@ object MicSession {
     private var attempt = 0
 
     /** Starts a stream to [deviceId]. A running stream stops first. */
-    fun start(core: FluxCore, deviceId: String) {
+    fun start(core: FluxCore, deviceId: String, mode: MicMode = MicMode.Source) {
         stop(core, notify = true)
         val id = synchronized(lock) {
             this.deviceId = deviceId
             ++attempt
         }
         val name = core.device(deviceId)?.identity?.deviceName ?: "the computer"
-        _status.value = Status(Phase.Connecting, "Waiting for $name…", deviceId)
+        _status.value = Status(Phase.Connecting, "Waiting for $name…", deviceId, mode)
         core.io.execute {
             try {
                 val d = core.device(deviceId) ?: error("$name is not known")
                 if (Types.FLUX_MIC !in d.identity.incoming) error("Update Flux on $name to use this phone as a microphone")
+                if (mode == MicMode.Speaker && Types.FLUX_MIC_SPEAKER !in d.identity.incoming) {
+                    error("Update Flux on $name to play on its speakers")
+                }
                 val ssl = PinnedStream.accept(core, d, CONNECT_TIMEOUT_MS, { srv ->
                     val keep = synchronized(lock) { if (attempt == id) { server = srv; true } else false }
                     if (!keep) runCatching { srv.close() }
-                }) { port -> MicPackets.start(port) }
+                }) { port -> MicPackets.start(port, mode) }
                 val keep = synchronized(lock) {
                     if (attempt != id) false else {
                         server = null
@@ -79,8 +84,8 @@ object MicSession {
                     runCatching { ssl.close() }
                     return@execute
                 }
-                _status.value = Status(Phase.Starting, "Starting Flux Microphone on $name…", deviceId)
-                record(d, ssl, id)
+                _status.value = Status(Phase.Starting, startingMessage(mode, name), deviceId, mode)
+                record(d, ssl, id, mode)
             } catch (e: Exception) {
                 if (!current(id)) return@execute
                 Log.i(TAG, "microphone stopped: ${e.message}")
@@ -89,9 +94,14 @@ object MicSession {
                     is java.io.IOException -> "The connection to $name closed"
                     else -> e.message ?: "The microphone could not start"
                 }
-                end(core, notify = true, Status(Phase.Error, message, deviceId), id)
+                end(core, notify = true, Status(Phase.Error, message, deviceId, mode), id)
             }
         }
+    }
+
+    private fun startingMessage(mode: MicMode, name: String): String = when (mode) {
+        MicMode.Speaker -> "Playing on $name's speakers…"
+        MicMode.Source -> "Starting Flux Microphone on $name…"
     }
 
     /** Stops the stream. With [notify], the computer gets flux.mic "stop". */
@@ -106,10 +116,11 @@ object MicSession {
         val mine = synchronized(lock) { deviceId == d.id }
         if (!mine) return
         val name = d.identity.deviceName
+        val mode = _status.value.mode
         when (reply) {
-            is MicReply.Live -> if (_status.value.active) _status.value = Status(Phase.Live, "Live on $name as ${reply.source}", d.id)
-            is MicReply.Failed -> core.io.execute { stop(core, notify = false, Status(Phase.Error, reply.message, d.id)) }
-            MicReply.Stop -> core.io.execute { stop(core, notify = false, Status(Phase.Idle, "Stopped on $name", d.id)) }
+            is MicReply.Live -> if (_status.value.active) _status.value = Status(Phase.Live, "Live on $name as ${reply.source}", d.id, mode)
+            is MicReply.Failed -> core.io.execute { stop(core, notify = false, Status(Phase.Error, reply.message, d.id, mode)) }
+            MicReply.Stop -> core.io.execute { stop(core, notify = false, Status(Phase.Idle, "Stopped on $name", d.id, mode)) }
         }
     }
 
@@ -117,8 +128,8 @@ object MicSession {
 
     /** Records and writes 10 ms chunks until the stream ends. It runs on the io thread of the stream. */
     @SuppressLint("MissingPermission")
-    private fun record(d: Device, ssl: SSLSocket, id: Int) {
-        val rec = openRecorder()
+    private fun record(d: Device, ssl: SSLSocket, id: Int, mode: MicMode) {
+        val rec = openRecorder(mode)
         val chunk = ShortArray(MicPackets.RATE / 100)
         val bytes = ByteArray(chunk.size * 2)
         val out = ssl.outputStream
@@ -146,14 +157,21 @@ object MicSession {
     }
 
     /**
-     * Opens the microphone with voice processing, as a call app does. A phone
-     * that has no voice source gets the plain microphone.
+     * Opens the microphone. Source mode uses voice processing, as a call app
+     * does. Speaker mode (transmit) uses the unprocessed microphone, so music
+     * and media sound clean. A phone without a preferred source gets the plain
+     * microphone.
      */
     @SuppressLint("MissingPermission")
-    private fun openRecorder(): AudioRecord {
+    private fun openRecorder(mode: MicMode): AudioRecord {
         val min = AudioRecord.getMinBufferSize(MicPackets.RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val size = maxOf(min, MicPackets.RATE / 10 * 2)
-        for (source in listOf(MediaRecorder.AudioSource.VOICE_COMMUNICATION, MediaRecorder.AudioSource.MIC)) {
+        val sources = if (mode == MicMode.Speaker) {
+            listOf(MediaRecorder.AudioSource.UNPROCESSED, MediaRecorder.AudioSource.MIC)
+        } else {
+            listOf(MediaRecorder.AudioSource.VOICE_COMMUNICATION, MediaRecorder.AudioSource.MIC)
+        }
+        for (source in sources) {
             val rec = AudioRecord(source, MicPackets.RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, size)
             if (rec.state == AudioRecord.STATE_INITIALIZED) return rec
             rec.release()

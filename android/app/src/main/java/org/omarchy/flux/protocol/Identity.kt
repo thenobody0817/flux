@@ -39,11 +39,21 @@ object Types {
     /** Flux extension: this phone streams its microphone to the computer as a virtual source. */
     const val FLUX_MIC = "flux.mic"
 
+    /**
+     * Capability marker, not a packet type: the peer understands
+     * "mode": "speaker" in a flux.mic start, so this phone may play on the
+     * computer's default output instead of the virtual source.
+     */
+    const val FLUX_MIC_SPEAKER = "flux.mic.speaker"
+
     /** Flux extension: this phone streams its screen to a window on the computer. */
     const val FLUX_SCREEN = "flux.screen"
 
     /** Flux extension: the computer asks this phone to approve sudo with a fingerprint. */
     const val FLUX_APPROVE = "flux.approve"
+
+    /** Flux extension: the computer asks this phone to answer an eyec prompt. */
+    const val FLUX_EYEC = "flux.eyec"
 }
 
 /** Packet types that the phone accepts. */
@@ -52,7 +62,7 @@ val INCOMING = listOf(
     Types.SHARE, Types.SHARE_UPDATE, Types.NOTIFICATION, Types.NOTIFICATION_REQUEST, Types.NOTIFICATION_REPLY,
     Types.NOTIFICATION_ACTION, Types.FIND_MY_PHONE, Types.RUN_COMMAND, Types.MPRIS,
     Types.SFTP, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
-    Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE,
+    Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
 )
 
 /** Packet types that the phone sends. */
@@ -60,7 +70,7 @@ val OUTGOING = listOf(
     Types.PING, Types.BATTERY, Types.CLIPBOARD, Types.CLIPBOARD_CONNECT, Types.SHARE,
     Types.SHARE_UPDATE, Types.NOTIFICATION, Types.FIND_MY_PHONE, Types.RUN_COMMAND_REQUEST,
     Types.MPRIS_REQUEST, Types.SFTP_REQUEST, Types.TELEPHONY, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
-    Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE,
+    Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
 )
 
 /** The body of a kdeconnect.identity packet. */

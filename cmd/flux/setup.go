@@ -176,8 +176,15 @@ func setupPlugin(dry bool, run func(string, string, ...string) error) error {
 // files, no symlinks, and no tools folder. From a checkout, the shared
 // views go into Flux/.
 func copyPlugin(src, views, dest string) error {
+	// From a checkout, the plugin root has no Flux/ directory: the shared
+	// views live in a separate dir and are copied into Flux/ below. From an
+	// installed package, the plugin root already contains Flux/, so it must
+	// be copied as-is. Only skip Flux/ when a separate views dir supplies it.
 	skip := func(rel string) bool {
-		return rel == "tools" || strings.HasPrefix(rel, "tools/") || rel == "Flux"
+		if rel == "tools" || strings.HasPrefix(rel, "tools/") {
+			return true
+		}
+		return views != "" && rel == "Flux"
 	}
 	if err := copyTree(src, dest, skip); err != nil {
 		return err

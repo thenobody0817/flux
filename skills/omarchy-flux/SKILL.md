@@ -139,6 +139,7 @@ make build
 | Omarchy shell host | `gui/omarchy/` |
 | Android app | `android/app/src/main/java/org/omarchy/flux/` |
 | Fingerprint approval | `internal/approve/`, `cmd/flux-approve/`, Android `core/Approve*` |
+| eyec prompts | `internal/core/eyec.go`, Android `core/Eyec.kt`, `docs/eyec.md` |
 | Package and system install | `dist/`, `Makefile` |
 
 Keep network state in `fluxd`.

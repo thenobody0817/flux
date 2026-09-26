@@ -12,7 +12,7 @@ func TestMicStartCheck(t *testing.T) {
 	if err := b.check(); err != nil {
 		t.Fatalf("defaults: %v", err)
 	}
-	if b.Rate != 48000 || b.Channels != 1 || b.Format != "s16le" {
+	if b.Rate != 48000 || b.Channels != 1 || b.Format != "s16le" || b.Mode != micModeSource {
 		t.Fatalf("defaults: %+v", b)
 	}
 	bad := []micStart{
@@ -22,16 +22,20 @@ func TestMicStartCheck(t *testing.T) {
 		{Port: 1739, Rate: 4000},
 		{Port: 1739, Rate: 192000},
 		{Port: 1739, Channels: 6},
+		{Port: 1739, Mode: "monitor"},
 	}
 	for _, b := range bad {
 		if err := b.check(); err == nil {
 			t.Errorf("%+v: want an error", b)
 		}
 	}
+	if b := (micStart{State: "start", Port: 1739, Mode: micModeSpeaker}); b.check() != nil || b.Mode != micModeSpeaker {
+		t.Errorf("speaker mode: %+v, %v", b, b.check())
+	}
 }
 
 func TestMicArgs(t *testing.T) {
-	args := micArgs(48000, 1)
+	args := micArgs(micModeSource, 48000, 1)
 	for _, want := range [][]string{
 		{"--playback", "--raw"},
 		{"--format", "s16"},
@@ -55,6 +59,24 @@ func TestMicArgs(t *testing.T) {
 		if !strings.Contains(props, want) {
 			t.Errorf("properties %q do not have %q", props, want)
 		}
+	}
+}
+
+func TestMicArgsSpeaker(t *testing.T) {
+	args := micArgs(micModeSpeaker, 48000, 1)
+	i := slices.Index(args, "--properties")
+	if i < 0 {
+		t.Fatalf("no --properties in %q", args)
+	}
+	props := args[i+1]
+	if strings.Contains(props, "Audio/Source") {
+		t.Errorf("speaker mode must not expose a source: %q", props)
+	}
+	if !strings.Contains(props, `media.name = "PC speakers"`) {
+		t.Errorf("properties %q do not name the output", props)
+	}
+	if args[len(args)-1] != "-" {
+		t.Errorf("the stream must come from stdin: %q", args)
 	}
 }
 

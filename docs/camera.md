@@ -73,6 +73,22 @@ flux mic stop
 To include audio with the webcam, enable **Also send the microphone** in the phone's Webcam settings.
 The virtual source exists only while the phone streams.
 
+## Transmit to the computer speakers
+
+On the phone's Microphone screen, press **Transmit to PC speakers** to play the
+phone microphone on the computer's default output instead of exposing **Flux
+Microphone**. This is useful to hear the phone (a call, a video, music) on the
+computer speakers.
+
+- Start exposes the **Flux Microphone** source and uses voice processing.
+- Transmit plays on the default sink and uses the unprocessed microphone.
+- Only one stream runs at a time. Starting one mode stops the other, and the
+  stream stops when the screen closes.
+- The button appears only when the computer runs a Flux version that supports it.
+
+The desktop shows the stream on Overview as **PHONE AUDIO** and reports it as
+`PC speakers` in `flux mic`.
+
 ## Screen mirror
 
 Install `mpv` or use `ffplay` from FFmpeg:

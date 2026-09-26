@@ -40,6 +40,8 @@ data class DeviceUi(
     val type: String,
     val ip: String,
     val isFlux: Boolean,
+    /** True when the computer understands transmitting the microphone to its speakers. */
+    val micSpeaker: Boolean,
     val paired: Boolean,
     val online: Boolean,
     val pairState: PairState,

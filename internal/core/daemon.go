@@ -67,6 +67,7 @@ type Daemon struct {
 	screen    *screenSession
 	screenErr string
 	approvals approvalBook
+	eyec      eyecBook
 
 	subs   map[int]func(event string, data any)
 	nextID int

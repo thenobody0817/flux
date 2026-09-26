@@ -71,6 +71,7 @@ flux watch
 | Media | `media.action` |
 | Streams | `webcam.config`, `webcam.stop`, `mic.stop`, `screen.stop` |
 | Approval | `approve.request`, `approve.wait`, `approve.enroll` |
+| eyec | `eyec.permit`, `eyec.permit.wait`, `eyec.permit.cancel`, `eyec.actions`, `eyec.trigger` |
 
 Read the handler before you add a client call.
 The approval helper applies additional peer and signature checks beyond this general socket protocol.

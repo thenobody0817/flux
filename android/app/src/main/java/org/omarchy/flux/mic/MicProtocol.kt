@@ -10,15 +10,27 @@ import kotlin.math.max
  * The flux.mic extension. The phone opens a TLS listener, sends "start"
  * with its port and the audio format, and writes raw PCM to the computer
  * that connects. The computer answers "live", "error", or "stop".
+ *
+ * [MicMode] selects what the computer does with the audio: [MicMode.Source]
+ * exposes it as the virtual Flux Microphone. [MicMode.Speaker] plays it on
+ * the computer's default output, so the phone is heard on its speakers.
  */
+enum class MicMode(val wire: String) {
+    Source("source"),
+    Speaker("speaker"),
+}
+
 object MicPackets {
     const val RATE = 48_000
     const val CHANNELS = 1
     const val FORMAT = "s16le"
 
-    fun start(port: Int): Packet = Packet(
+    fun start(port: Int, mode: MicMode = MicMode.Source): Packet = Packet(
         Types.FLUX_MIC,
-        bodyOf("state" to "start", "port" to port, "rate" to RATE, "channels" to CHANNELS, "format" to FORMAT),
+        bodyOf(
+            "state" to "start", "port" to port, "rate" to RATE, "channels" to CHANNELS,
+            "format" to FORMAT, "mode" to mode.wire,
+        ),
     )
 
     fun stop(): Packet = Packet(Types.FLUX_MIC, bodyOf("state" to "stop"))

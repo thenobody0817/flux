@@ -65,6 +65,7 @@ class Device(private val core: FluxCore, var identity: Identity) {
         type = identity.deviceType,
         ip = link?.address?.hostAddress ?: lastIp,
         isFlux = identity.isFlux,
+        micSpeaker = Types.FLUX_MIC_SPEAKER in identity.incoming,
         paired = paired,
         online = online,
         pairState = pairState,

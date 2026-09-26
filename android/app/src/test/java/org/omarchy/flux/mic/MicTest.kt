@@ -16,6 +16,8 @@ class MicTest {
     fun capabilityIsInBothLists() {
         assertTrue(Types.FLUX_MIC in INCOMING)
         assertTrue(Types.FLUX_MIC in OUTGOING)
+        assertTrue(Types.FLUX_MIC_SPEAKER in INCOMING)
+        assertTrue(Types.FLUX_MIC_SPEAKER in OUTGOING)
     }
 
     @Test
@@ -27,7 +29,17 @@ class MicTest {
         assertEquals(48000, p.int("rate"))
         assertEquals(1, p.int("channels"))
         assertEquals("s16le", p.string("format"))
+        assertEquals("source", p.string("mode"))
         assertEquals(1745, Packet.parse(p.serialize())!!.int("port"))
+    }
+
+    @Test
+    fun startBodyCarriesTheSpeakerMode() {
+        val p = MicPackets.start(1746, MicMode.Speaker)
+        assertEquals("start", p.string("state"))
+        assertEquals(1746, p.int("port"))
+        assertEquals("speaker", p.string("mode"))
+        assertEquals("speaker", Packet.parse(p.serialize())!!.string("mode"))
     }
 
     @Test

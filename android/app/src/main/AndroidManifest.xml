@@ -96,6 +96,15 @@
             android:turnScreenOn="true"
             android:taskAffinity="org.omarchy.flux.approve" />
 
+        <activity
+            android:name=".ui.EyecActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity="org.omarchy.flux.eyec" />
+
         <service
             android:name=".service.FluxService"
             android:exported="false"

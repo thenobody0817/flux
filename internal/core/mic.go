@@ -20,12 +20,19 @@ import (
 const (
 	micSource = "Flux Microphone"
 	micNode   = "flux_mic"
+	// micSpeaker is the label shown when the phone plays on the computer's
+	// default output instead of the virtual microphone source.
+	micSpeaker = "PC speakers"
+	// The two modes of a flux.mic start body.
+	micModeSource  = "source"
+	micModeSpeaker = "speaker"
 )
 
 // MicView is the microphone state for the window.
 type MicView struct {
 	Active   bool   `json:"active"`
 	Source   string `json:"source"`
+	Mode     string `json:"mode,omitempty"`
 	From     string `json:"from"`
 	FromName string `json:"fromName"`
 	Rate     int    `json:"rate"`
@@ -46,6 +53,7 @@ type micStart struct {
 	Rate     int    `json:"rate"`
 	Channels int    `json:"channels"`
 	Format   string `json:"format"`
+	Mode     string `json:"mode"`
 	Message  string `json:"message"`
 }
 
@@ -60,6 +68,9 @@ func (b *micStart) check() error {
 	if b.Channels == 0 {
 		b.Channels = 1
 	}
+	if b.Mode == "" {
+		b.Mode = micModeSource
+	}
 	switch {
 	case b.Port <= 0 || b.Port > 65535:
 		return fmt.Errorf("the port %d is not valid", b.Port)
@@ -69,22 +80,32 @@ func (b *micStart) check() error {
 		return fmt.Errorf("the rate %d Hz is not supported. Send 8000 to 96000 Hz", b.Rate)
 	case b.Channels != 1 && b.Channels != 2:
 		return fmt.Errorf("%d channels are not supported. Send 1 or 2", b.Channels)
+	case b.Mode != micModeSource && b.Mode != micModeSpeaker:
+		return fmt.Errorf("the mode %q is not supported. Send source or speaker", b.Mode)
 	}
 	return nil
 }
 
-// micArgs returns the pw-cat arguments that play raw s16le PCM from stdin
-// into a new PipeWire source.
-func micArgs(rate, channels int) []string {
-	props := fmt.Sprintf(`{ media.class = "Audio/Source" node.name = %q node.description = %q media.icon-name = "audio-input-microphone" }`,
-		micNode, micSource)
-	return []string{
+// micArgs returns the pw-cat arguments that play raw s16le PCM from stdin.
+// Source mode exposes the audio as a new PipeWire source; speaker mode plays
+// it on the default output, so the phone is heard on the computer speakers.
+func micArgs(mode string, rate, channels int) []string {
+	args := []string{
 		"--playback", "--raw",
 		"--format", "s16", "--rate", strconv.Itoa(rate), "--channels", strconv.Itoa(channels),
 		"--latency", "40ms",
-		"--properties", props,
+		"--properties", "",
 		"-",
 	}
+	var props string
+	if mode == micModeSpeaker {
+		props = fmt.Sprintf(`{ media.name = %q }`, micSpeaker)
+	} else {
+		props = fmt.Sprintf(`{ media.class = "Audio/Source" node.name = %q node.description = %q media.icon-name = "audio-input-microphone" }`,
+			micNode, micSource)
+	}
+	args[len(args)-2] = props
+	return args
 }
 
 func (d *Daemon) handleMic(dev *Device, l *lan.Link, p *proto.Packet) {
@@ -117,6 +138,10 @@ func (d *Daemon) runMic(dev *Device, l *lan.Link, b micStart) {
 		fail(err)
 		return
 	}
+	label := micSource
+	if b.Mode == micModeSpeaker {
+		label = micSpeaker
+	}
 	if d.opts.Headless {
 		fail(errors.New("the microphone is off in headless mode"))
 		return
@@ -136,7 +161,7 @@ func (d *Daemon) runMic(dev *Device, l *lan.Link, b micStart) {
 	}
 	defer tc.Close()
 	s := &micSession{dev: dev, link: l, cancel: cancel, view: MicView{
-		Source: micSource, From: dev.ID, FromName: dev.Name, Rate: b.Rate, Channels: b.Channels,
+		Source: label, Mode: b.Mode, From: dev.ID, FromName: dev.Name, Rate: b.Rate, Channels: b.Channels,
 	}}
 	d.mu.Lock()
 	d.mic, d.micErr = s, ""
@@ -151,7 +176,7 @@ func (d *Daemon) runMic(dev *Device, l *lan.Link, b micStart) {
 	}()
 	cancelOnLinkDown(ctx, l, cancel)
 
-	cmd := childCommand(ctx, pwcat, micArgs(b.Rate, b.Channels)...)
+	cmd := childCommand(ctx, pwcat, micArgs(b.Mode, b.Rate, b.Channels)...)
 	cmd.Stdin = tc
 	var stderr lockedBuffer
 	cmd.Stderr = &stderr
@@ -169,8 +194,8 @@ func (d *Daemon) runMic(dev *Device, l *lan.Link, b micStart) {
 		d.mu.Lock()
 		s.view.Active = true
 		d.mu.Unlock()
-		_ = l.Send(proto.New(proto.TypeFluxMic, map[string]any{"state": "live", "source": micSource}))
-		d.toast("%s is live as %s", dev.Name, micSource)
+		_ = l.Send(proto.New(proto.TypeFluxMic, map[string]any{"state": "live", "source": label, "mode": b.Mode}))
+		d.toast("%s is live as %s", dev.Name, label)
 		d.markDirty()
 	}()
 	err = cmd.Wait()

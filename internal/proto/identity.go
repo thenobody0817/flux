@@ -46,14 +46,23 @@ const (
 	// sends it after a local change. Both sides send it.
 	TypeFluxDnd = "flux.dnd"
 	// TypeFluxMic starts and stops the phone as a microphone. Both sides
-	// send it.
+	// send it. The start body carries an optional "mode": "source" (default)
+	// exposes the phone as the Flux Microphone source; "speaker" plays the
+	// audio on the computer's default output instead.
 	TypeFluxMic = "flux.mic"
+	// MicSpeakerCap marks that a peer understands "mode": "speaker" in a
+	// flux.mic start. It is a capability string, not a packet type.
+	MicSpeakerCap = "flux.mic.speaker"
 	// TypeFluxScreen starts and stops the mirror of the phone screen. Both
 	// sides send it.
 	TypeFluxScreen = "flux.screen"
 	// TypeFluxApprove carries approval and enrollment requests to the phone,
 	// and the signed answers back. docs/approve.md describes it.
 	TypeFluxApprove = "flux.approve"
+	// TypeFluxEyec carries eyec requests between the desktop and the phone.
+	// The first kind is "permit", which routes an opencode permission prompt
+	// to the phone. docs/eyec.md describes it.
+	TypeFluxEyec = "flux.eyec"
 )
 
 // Incoming lists the packet types that Flux accepts. The phone enables a
@@ -64,7 +73,7 @@ var Incoming = []string{
 	TypeRunCommandRequest, TypeMpris, TypeMprisRequest, TypeSftp,
 	TypeSftpRequest, TypeSmsMessages, TypeConnectivity, TypeTelephony,
 	TypeFluxTunnel, TypeFluxWebcam, TypeFluxDnd, TypeFluxMic, TypeFluxScreen,
-	TypeFluxApprove,
+	TypeFluxApprove, TypeFluxEyec, MicSpeakerCap,
 }
 
 // Outgoing lists the packet types that Flux sends.
@@ -74,7 +83,7 @@ var Outgoing = []string{
 	TypeFindMyPhone, TypeRunCommand, TypeMpris, TypeMprisRequest,
 	TypeSftpRequest, TypeSmsRequest, TypeSmsConversations,
 	TypeSmsConversation, TypeSftp, TypeFluxWebcam, TypeFluxDnd,
-	TypeFluxMic, TypeFluxScreen, TypeFluxApprove,
+	TypeFluxMic, TypeFluxScreen, TypeFluxApprove, TypeFluxEyec, MicSpeakerCap,
 }
 
 // Identity is the body of a kdeconnect.identity packet.
