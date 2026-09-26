@@ -149,9 +149,24 @@ Check the pieces in order.
 4. From 5G the magic packet needs a reachable address. The **Wake
    address** must reach the computer's network: forward UDP 9 on the home
    router to the computer's LAN address, and give the computer a DHCP
-   reservation. If the router drops the packet because it has no ARP entry
-   for a sleeping computer, add a static ARP entry or use a relay on an
-   always-on device.
+   reservation.
+
+   A sleeping adapter often stops answering ARP, so the router cannot
+   deliver the forwarded packet to it. Add a static ARP entry on the
+   router (here a Merlin RT-AC88U with the PC at `192.168.1.212`):
+
+   ```sh
+   ip neigh replace 192.168.1.212 lladdr 10:06:48:c0:1b:f9 dev br0 nud permanent
+   ```
+
+   Persist it in `/jffs/scripts/services-start`. On Wi-Fi the phone also
+   sends the magic packet to the local broadcast, so a manual **Wake** at
+   home does not need the router forward.
+
+   A machine that only offers `s2idle` (no deep sleep in
+   `/sys/power/mem_sleep`) can still wake a USB adapter, but the USB
+   controller must keep wake on. If it does not, a relay on an always-on
+   device or a motherboard Ethernet adapter is more reliable.
 
 Some USB network adapters do not support Wake-on-LAN at all.
 Prefer a motherboard Ethernet adapter when you can.

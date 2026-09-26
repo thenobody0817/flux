@@ -42,6 +42,17 @@ class WakeTest {
     }
 
     @Test
+    fun targetsSendToHostAndBroadcastOnWifi() {
+        assertEquals(listOf("home.example.com" to 9), Wake.targets("home.example.com", 9, onWifi = false))
+        assertEquals(
+            listOf("home.example.com" to 9, Wake.BROADCAST to 9),
+            Wake.targets("home.example.com", 9, onWifi = true),
+        )
+        assertEquals(listOf(Wake.BROADCAST to 9), Wake.targets("", 9, onWifi = true))
+        assertTrue("no target away from Wi-Fi without a host", Wake.targets("", 9, onWifi = false).isEmpty())
+    }
+
+    @Test
     fun automaticAttemptsAreRateLimitedAndReset() {
         val id = "device-under-test"
         Wake.clear(id)

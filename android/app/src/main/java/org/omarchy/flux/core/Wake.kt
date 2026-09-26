@@ -56,6 +56,20 @@ object Wake {
         return null
     }
 
+    /**
+     * Returns every address to try: the configured host first, and the local
+     * broadcast as well on Wi-Fi. A sleeping computer may answer 1 path and
+     * not the other, so the phone sends to both.
+     */
+    fun targets(host: String, port: Int, onWifi: Boolean): List<Pair<String, Int>> {
+        val h = host.trim()
+        val p = port.takeIf { it in 1..65535 } ?: DEFAULT_PORT
+        val out = LinkedHashSet<Pair<String, Int>>()
+        if (h.isNotEmpty()) out += h to p
+        if (onWifi) out += BROADCAST to p
+        return out.toList()
+    }
+
     /** Returns true when an automatic attempt is allowed now, and records it. */
     @Synchronized
     fun allowAuto(deviceId: String): Boolean {

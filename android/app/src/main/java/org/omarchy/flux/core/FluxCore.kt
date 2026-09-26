@@ -329,23 +329,26 @@ object FluxCore {
             if (manual) toast("No hardware address for $name yet. Add one in the wake settings.")
             return false
         }
-        val dest = Wake.target(trusted?.wakeHost.orEmpty(), trusted?.wakePort ?: Wake.DEFAULT_PORT, Android.onWifi(app))
-        if (dest == null) {
+        val targets = Wake.targets(trusted?.wakeHost.orEmpty(), trusted?.wakePort ?: Wake.DEFAULT_PORT, Android.onWifi(app))
+        if (targets.isEmpty()) {
             if (manual) toast("Set a wake address for $name, or connect to its Wi-Fi.")
             return false
         }
         if (!manual && !Wake.allowAuto(id)) return false
         io.execute {
-            val sent = Wake.send(dest.first, dest.second, macs)
-            if (manual) toast(if (sent > 0) "Waking $name…" else "Could not send the wake packet to ${dest.first}")
+            var sent = 0
+            for ((host, port) in targets) sent += Wake.send(host, port, macs)
+            Log.i(TAG, "wake $name: sent $sent packet(s) to $targets for $macs")
+            if (manual) toast(if (sent > 0) "Waking $name…" else "Could not send the wake packet to ${targets.first().first}")
         }
         return true
     }
 
     /**
-     * Wakes each paired computer that is unreachable while this phone is off
-     * Wi-Fi. The phone is on 5G then, and the computer needs a reachable
-     * wake address. Each computer is attempted at most once per interval.
+     * Wakes each paired computer that is unreachable while this phone is away
+     * from Wi-Fi, so a computer that went to sleep is woken on 5G. At home
+     * the wake is manual, so a deliberate suspend is not undone. Each
+     * computer is attempted at most once per interval.
      */
     fun wakeAway() {
         if (Android.onWifi(app)) return
