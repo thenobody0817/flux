@@ -114,6 +114,14 @@ The pages are:
 
 Release builds ignore these extras.
 
+## Wake-on-LAN
+
+The device page has a **Wake when away** switch and a **Wake settings**
+row.
+The app learns the computer's hardware addresses from its identity and
+keeps the wake address with the paired computer.
+See [everyday use](features.md#wake-a-sleeping-computer).
+
 ## Icons
 
 The app uses Material Symbols Rounded at the 24 dp optical size, under the Apache License 2.0. To add an icon, add its name to `ICONS` in `tools/fetch_icons.py`, run the script, and add the drawable to `Ic` in `ui/Icons.kt`:

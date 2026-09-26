@@ -52,6 +52,15 @@ object Android {
         }
     }
 
+    /** The hardware addresses of the physical network interfaces, for Wake-on-LAN. */
+    fun wakeMacs(): List<String> = runCatching {
+        java.net.NetworkInterface.getNetworkInterfaces().toList()
+            .filter { !it.isLoopback && !it.isVirtual }
+            .mapNotNull { it.hardwareAddress }
+            .filter { it.size == 6 && it.any { b -> b != 0.toByte() } }
+            .map { bytes -> bytes.joinToString(":") { "%02x".format(it) } }
+    }.getOrDefault(emptyList())
+
     fun hasNotificationAccess(context: Context): Boolean =
         NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
 

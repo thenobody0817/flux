@@ -116,3 +116,42 @@ Check the phone connection, enrolled key, fingerprint setup, and approval timeou
 A new fingerprint can invalidate the phone key and require enrollment again.
 Keep the password fallback active while you diagnose approval.
 See [approval setup](approvals.md).
+
+## Wake-on-LAN does not work
+
+Check the pieces in order.
+
+1. The phone must know a hardware address. Open the device page and its
+   **Wake settings** row. The summary counts the learned addresses. If it
+   shows none, connect the computer once while the phone is on the same
+   network, or enter the address by hand.
+
+2. The desktop network adapter must allow wake. Check the interface name
+   from `ip -br link`:
+
+   ```sh
+   sudo pacman -S --needed ethtool
+   sudo ethtool enp196s0f4u1u2 | grep Wake-on
+   ```
+
+   `Supports Wake-on` must include `g` for a magic packet. Turn it on and
+   make it survive a reboot through NetworkManager:
+
+   ```sh
+   sudo ethtool -s enp196s0f4u1u2 wol g
+   nmcli connection modify "Wired connection 1" 802-3-ethernet.wake-on-lan magic
+   ```
+
+3. Wake-on-LAN usually works from suspend, not from a full shutdown.
+   Use `systemctl suspend`. In the firmware, enable "Power On by PCI-E"
+   and disable "ErP Ready" so the adapter keeps power.
+
+4. From 5G the magic packet needs a reachable address. The **Wake
+   address** must reach the computer's network: forward UDP 9 on the home
+   router to the computer's LAN address, and give the computer a DHCP
+   reservation. If the router drops the packet because it has no ARP entry
+   for a sleeping computer, add a static ARP entry or use a relay on an
+   always-on device.
+
+Some USB network adapters do not support Wake-on-LAN at all.
+Prefer a motherboard Ethernet adapter when you can.

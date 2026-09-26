@@ -43,6 +43,7 @@ Flux for Android is the supported phone app.
 | Receive files, icons, or album art | Desktop connects to the phone's payload port |
 | Send files to the phone | Phone listens for a `flux.tunnel`, then desktop connects |
 | Browse the desktop from the phone | SSH inside a `flux.tunnel` |
+| Wake a sleeping computer | Phone sends a Wake-on-LAN magic packet to a configured address |
 
 The default Omarchy firewall permits mDNS.
 Flux needs no new inbound desktop firewall rule for these routes.

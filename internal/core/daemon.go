@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -328,13 +329,16 @@ func (d *Daemon) discoveryLoop(ctx context.Context) {
 }
 
 // announce broadcasts the identity and sends it to the last address of
-// each paired device that is offline.
+// each paired device that is offline. Only devices on a directly attached
+// network get a unicast identity: a remote peer (for example over
+// Tailscale) would answer it by opening a second simultaneous link, and
+// the two links then close each other over a high latency path.
 func (d *Daemon) announce() {
 	d.lan.Broadcast()
 	d.mu.Lock()
 	var ips []string
 	for _, dev := range d.devices {
-		if dev.Paired && dev.link == nil && dev.IP != "" {
+		if dev.Paired && dev.link == nil && dev.IP != "" && isDirect(dev.IP) {
 			ips = append(ips, dev.IP)
 		}
 	}
@@ -401,15 +405,18 @@ func (d *Daemon) onMDNS(peer lan.MDNSPeer) {
 
 // dialKnown connects to each device that is offline and has a known
 // address: paired devices, and devices that mDNS found in the last 10
-// minutes. It also sends a unicast UDP identity from port 1716. A device
-// that answers from its port 1716 passes the firewall as a reply.
+// minutes. It also sends a unicast UDP identity from port 1716 to peers
+// on a directly attached network. A device that answers from its port
+// 1716 passes the firewall as a reply. A paired device can also name a
+// remote address, for example a Tailscale MagicDNS name, which fluxd
+// dials directly without the UDP identity.
 func (d *Daemon) dialKnown() {
 	type target struct {
 		ip   string
 		port int
 		id   proto.Identity
 	}
-	var targets []target
+	var local, remote []target
 	var refresh []string
 	d.mu.Lock()
 	m := d.mdns
@@ -419,24 +426,105 @@ func (d *Daemon) dialKnown() {
 		if dev.link == nil && dev.Paired {
 			refresh = append(refresh, dev.ID)
 		}
-		if dev.link != nil || dev.IP == "" {
+		if dev.link != nil {
 			continue
 		}
-		if !dev.Paired && time.Since(dev.mdnsSeen) > 10*time.Minute {
+		if dev.Paired {
+			id := proto.Identity{DeviceID: dev.ID, DeviceName: dev.Name, ProtocolVersion: dev.Version}
+			switch {
+			case dev.IP != "" && isDirect(dev.IP):
+				local = append(local, target{dev.IP, dev.Port, id})
+			case dev.Remote == "" && dev.IP != "":
+				// A paired device that was last seen on an overlay network,
+				// for example Tailscale.
+				remote = append(remote, target{dev.IP, dev.Port, id})
+			}
+			if host, port := remoteAddr(dev.Remote); host != "" {
+				remote = append(remote, target{host, port, id})
+			}
 			continue
 		}
-		targets = append(targets, target{dev.IP, dev.Port, proto.Identity{DeviceID: dev.ID, DeviceName: dev.Name, ProtocolVersion: dev.Version}})
+		if dev.IP == "" || time.Since(dev.mdnsSeen) > 10*time.Minute {
+			continue
+		}
+		if isDirect(dev.IP) {
+			local = append(local, target{dev.IP, dev.Port, proto.Identity{DeviceID: dev.ID, DeviceName: dev.Name, ProtocolVersion: dev.Version}})
+		}
 	}
 	d.mu.Unlock()
 	for _, id := range refresh {
 		m.Refresh(id)
 	}
-	for _, t := range targets {
+	for _, t := range local {
 		d.lan.Announce(t.ip)
 		if t.port > 0 {
 			d.lan.Dial(d.ctx, t.ip, t.port, t.id)
 		}
 	}
+	if len(remote) == 0 {
+		return
+	}
+	// Give the local network a moment to connect first. A phone at home
+	// answers on the LAN, and the remote address is then not needed. On a
+	// mobile network there is no answer, and the remote dial follows.
+	go func() {
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+		select {
+		case <-d.ctx.Done():
+			return
+		case <-timer.C:
+		}
+		for _, t := range remote {
+			if t.port > 0 {
+				d.lan.Dial(d.ctx, t.ip, t.port, t.id)
+			}
+		}
+	}()
+}
+
+// DefaultPort is the TCP port that Flux listens on unless the user names
+// another one.
+const DefaultPort = 1716
+
+// remoteAddr splits a configured remote address into a host and a port.
+// It accepts "host", "host:port", and "[ipv6]:port" and falls back to
+// DefaultPort. It returns an empty host for an empty address.
+func remoteAddr(s string) (string, int) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", 0
+	}
+	if host, port, err := net.SplitHostPort(s); err == nil {
+		if n, err := strconv.Atoi(port); err == nil && n > 0 && n <= 65535 {
+			return host, n
+		}
+		return host, DefaultPort
+	}
+	return s, DefaultPort
+}
+
+// isDirect reports whether ip is on a network that this computer is
+// directly attached to. Tailscale and other overlay networks are left
+// out, because a UDP identity to those peers causes a double connect.
+func isDirect(ip string) bool {
+	addr := net.ParseIP(ip)
+	if addr == nil {
+		return false
+	}
+	ifaces, _ := net.Interfaces()
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || ifc.Name == "tailscale0" {
+			continue
+		}
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok && n.Contains(addr) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // onIdentity records a device seen by UDP.

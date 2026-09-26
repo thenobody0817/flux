@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -49,6 +50,8 @@ class FluxService : Service() {
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             FluxCore.rediscover()
+            // A switch to 5G while a computer is unreachable can wake it.
+            FluxCore.wakeAway()
         }
 
         override fun onLost(network: Network) {
@@ -164,6 +167,13 @@ class FluxService : Service() {
         )
         CaptureWatch.refresh(this)
         FluxCore.startNetwork()
+        // A computer that is awake dials in within a few seconds. Wake anyone
+        // who is still unreachable after the grace period, for example when
+        // Flux starts while the phone is away on 5G.
+        scope.launch {
+            delay(20_000)
+            FluxCore.wakeAway()
+        }
         nsd = getSystemService(NsdManager::class.java)
         runCatching { nsd?.discoverServices(MDNS_TYPE, NsdManager.PROTOCOL_DNS_SD, nsdListener) }
         scope.launch { FluxCore.listenPort.collect { announce() } }

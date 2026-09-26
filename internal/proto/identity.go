@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"net"
 	"os"
 	"regexp"
 	"strconv"
@@ -95,11 +96,49 @@ type Identity struct {
 	IncomingCapabilities []string `json:"incomingCapabilities"`
 	OutgoingCapabilities []string `json:"outgoingCapabilities"`
 	TCPPort              int      `json:"tcpPort,omitempty"`
+	// WakeMACs are the hardware addresses of this machine's physical
+	// network interfaces. A Flux phone stores them and sends a Wake-on-LAN
+	// magic packet to each when this machine is unreachable. Other KDE
+	// Connect peers ignore the field.
+	WakeMACs []string `json:"fluxWakeMacs,omitempty"`
 	// TargetDeviceID and TargetProtocolVersion go only in the plain-text
 	// identity that the connecting side writes before TLS. The receiver
 	// closes the socket when they do not match its own identity.
 	TargetDeviceID        string `json:"targetDeviceId,omitempty"`
 	TargetProtocolVersion any    `json:"targetProtocolVersion,omitempty"`
+}
+
+// interfaces lists the network interfaces. It is a variable so that tests
+// can replace it.
+var interfaces = net.Interfaces
+
+// physicalMACs returns the hardware addresses of the interfaces that can
+// wake this machine. It skips loopback, virtual, and container interfaces,
+// interfaces without a hardware address, and the all-zero address.
+func physicalMACs() []string {
+	ifaces, err := interfaces()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		name := ifc.Name
+		if strings.HasPrefix(name, "tailscale") || strings.HasPrefix(name, "docker") ||
+			strings.HasPrefix(name, "veth") || strings.HasPrefix(name, "br-") ||
+			strings.HasPrefix(name, "virbr") || strings.HasPrefix(name, "tun") ||
+			strings.HasPrefix(name, "tap") || strings.HasPrefix(name, "wg") {
+			continue
+		}
+		mac := ifc.HardwareAddr.String()
+		if mac == "" || mac == "00:00:00:00:00:00" {
+			continue
+		}
+		out = append(out, mac)
+	}
+	return out
 }
 
 // TargetVersion returns targetProtocolVersion as a number. Android sends it
@@ -164,5 +203,6 @@ func NewIdentity(id, name string, tcpPort int) Identity {
 		IncomingCapabilities: Incoming,
 		OutgoingCapabilities: Outgoing,
 		TCPPort:              tcpPort,
+		WakeMACs:             physicalMACs(),
 	}
 }

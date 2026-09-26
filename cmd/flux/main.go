@@ -31,6 +31,9 @@ Commands:
   accept DEVICE          Accept a pair request
   reject DEVICE          Reject a pair request
   unpair DEVICE          Remove a paired device
+  remote [HOST[:PORT]]   Set the address to reach a device away from the local
+                         network, for example a Tailscale MagicDNS name. Without
+                         HOST it clears the address. Use with --device.
   ring                   Ring the phone
   ping [MESSAGE]         Send a ping
   send FILE...           Send files
@@ -90,6 +93,8 @@ func main() {
 		err = call("pair.reject", map[string]any{"device": need(args, "DEVICE")})
 	case "unpair":
 		err = call("pair.unpair", map[string]any{"device": need(args, "DEVICE")})
+	case "remote":
+		err = call("device.remote", map[string]any{"device": device, "remote": first(args)})
 	case "ring":
 		err = call("ring", map[string]any{"device": device})
 	case "ping":

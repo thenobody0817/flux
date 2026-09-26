@@ -19,7 +19,8 @@ type Device struct {
 	Name     string
 	Type     string
 	IP       string
-	Port     int // TCP listener port of the device
+	Remote   string // address reachable off the local network, or empty
+	Port     int    // TCP listener port of the device
 	Version  int
 	Incoming []string
 	Outgoing []string
@@ -73,6 +74,7 @@ func newDevice(id string) *Device {
 
 func (dev *Device) applyTrust(t config.TrustedDevice) {
 	dev.Name, dev.Type, dev.IP, dev.Port = t.Name, t.Type, t.LastIP, t.LastPort
+	dev.Remote = t.Remote
 	dev.Paired, dev.PairedAt = true, t.PairedAt
 	if c, err := proto.ParseCertPEM(t.CertPEM); err == nil {
 		dev.Cert = c
@@ -148,6 +150,7 @@ type DeviceView struct {
 	Name          string               `json:"name"`
 	Type          string               `json:"type"`
 	IP            string               `json:"ip"`
+	Remote        string               `json:"remote,omitempty"`
 	Paired        bool                 `json:"paired"`
 	Online        bool                 `json:"online"`
 	PairState     string               `json:"pairState"`
@@ -170,7 +173,7 @@ func (dev *Device) view() DeviceView {
 		state = "none"
 	}
 	v := DeviceView{
-		ID: dev.ID, Name: dev.Name, Type: dev.Type, IP: dev.IP,
+		ID: dev.ID, Name: dev.Name, Type: dev.Type, IP: dev.IP, Remote: dev.Remote,
 		Paired: dev.Paired, Online: dev.link != nil,
 		PairState: state, PairKey: dev.pairKey, PairedAt: dev.PairedAt,
 		Battery: dev.battery, Signal: dev.signal,

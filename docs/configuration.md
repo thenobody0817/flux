@@ -48,6 +48,55 @@ command = "omarchy-system-lock"
 The destination paths expand `~`.
 Use the [CLI](cli.md#media-and-desktop-commands) or the Phone commands page to add commands without editing TOML.
 
+## Remote devices
+
+Flux normally connects over the local network. A paired device can also
+name an address that is reachable away from home, such as a Tailscale
+MagicDNS name. `fluxd` keeps it in `devices.json`:
+
+```json
+{
+  "name": "Moto Edge 40 Pro",
+  "remote": "moto-edge-40-pro.tailb898c2.ts.net"
+}
+```
+
+Set it with the CLI instead of editing the file:
+
+```sh
+flux remote moto-edge-40-pro.tailb898c2.ts.net --device "Moto Edge 40 Pro"
+```
+
+The address may include a port, for example `moto-edge-40-pro.tailb898c2.ts.net:1716`;
+without one, fluxd uses 1716. `fluxd` dials the local address first and,
+when that does not connect, dials the remote address. It does not send
+the UDP identity to a remote address, because a peer that answers it
+would open a second link at the same time, and on a high latency path the
+two links can close each other. The desktop always opens the connection,
+so the phone needs no new inbound rule.
+
+## Wake-on-LAN
+
+`fluxd` advertises the hardware addresses of its physical network
+interfaces in the `fluxWakeMacs` field of its identity. Flux for Android
+stores them with the paired device, so the phone can send a Wake-on-LAN
+magic packet when the computer is asleep.
+
+A magic packet is a local broadcast. From 5G the phone cannot reach the
+home network directly, so set a **Wake address** on the phone's device
+page: a host and UDP port that deliver the packet to the home network.
+Common choices are a router with a UDP port forward to the computer's LAN
+address, or a small relay on an always-on device. Without an address, the
+phone falls back to the local broadcast, which works only on the
+computer's own Wi-Fi.
+
+Flux for Android stores `wakeHost`, `wakePort`, and `wakeEnabled` with the
+paired device in its own trust store.
+The desktop trust store keeps the paired phone, not the wake settings.
+Enable **Wake when away** to send the packet automatically when the phone
+is off Wi-Fi and the computer is unreachable.
+See [everyday use](features.md#wake-a-sleeping-computer).
+
 ## Data paths
 
 | Path | Content |

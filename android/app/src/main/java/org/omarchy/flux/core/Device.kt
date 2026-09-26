@@ -59,25 +59,34 @@ class Device(private val core: FluxCore, var identity: Identity) {
         return true
     }
 
-    fun snapshot(): DeviceUi = DeviceUi(
-        id = id,
-        name = identity.deviceName,
-        type = identity.deviceType,
-        ip = link?.address?.hostAddress ?: lastIp,
-        isFlux = identity.isFlux,
-        micSpeaker = Types.FLUX_MIC_SPEAKER in identity.incoming,
-        paired = paired,
-        online = online,
-        pairState = pairState,
-        pairKey = pairKey,
-        pairOutgoing = pairState == PairState.Requested,
-        battery = battery,
-        charging = charging,
-        players = players,
-        player = currentPlayer?.let { playerStates[it] },
-        commands = commands,
-        commandsLoaded = commandsLoaded,
-    )
+    fun snapshot(): DeviceUi {
+        val trusted = if (paired) core.trust.get(id) else null
+        val macs = trusted?.wakeMacList().orEmpty()
+        return DeviceUi(
+            id = id,
+            name = identity.deviceName,
+            type = identity.deviceType,
+            ip = link?.address?.hostAddress ?: lastIp,
+            isFlux = identity.isFlux,
+            micSpeaker = Types.FLUX_MIC_SPEAKER in identity.incoming,
+            paired = paired,
+            online = online,
+            pairState = pairState,
+            pairKey = pairKey,
+            pairOutgoing = pairState == PairState.Requested,
+            battery = battery,
+            charging = charging,
+            players = players,
+            player = currentPlayer?.let { playerStates[it] },
+            commands = commands,
+            commandsLoaded = commandsLoaded,
+            wakeMacs = macs,
+            wakeHost = trusted?.wakeHost.orEmpty(),
+            wakePort = trusted?.wakePort ?: 9,
+            wakeEnabled = trusted?.wakeEnabled == true,
+            canWake = macs.isNotEmpty(),
+        )
+    }
 
     // ---------------------------------------------------------------- pairing
 
@@ -172,6 +181,7 @@ class Device(private val core: FluxCore, var identity: Identity) {
                 certificate = TrustStore.encode(cert),
                 lastIp = link?.address?.hostAddress ?: "",
                 isFlux = identity.isFlux,
+                wakeMacs = identity.wakeMacs,
             ),
         )
         core.toast("Paired with ${identity.deviceName}")
