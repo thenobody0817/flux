@@ -53,6 +53,10 @@ type Daemon struct {
 	dnd      dndBackend
 	dndGuard dndGuard
 
+	// theme is the active Omarchy theme, or nil when Omarchy is not
+	// installed.
+	theme *desktop.Theme
+
 	// mdns resolves the address of a paired device again. It is nil when
 	// Avahi is not available.
 	mdns *lan.MDNS
@@ -260,6 +264,16 @@ func (d *Daemon) Run() error {
 		go d.dndLoop(ctx)
 	} else {
 		d.logf("Do Not Disturb sync off: no supported notification service")
+	}
+
+	if th := desktop.NewTheme(); th != nil {
+		d.mu.Lock()
+		d.theme = th
+		d.mu.Unlock()
+		d.logf("Omarchy theme sync is on")
+		go d.themeLoop(ctx)
+	} else {
+		d.logf("Omarchy theme sync off: omarchy not found")
 	}
 
 	go d.clip.Watch(ctx, d.onLocalClipboard)
@@ -621,6 +635,7 @@ func (d *Daemon) onPairedLink(dev *Device, l *lan.Link) {
 	if dev.supports(proto.TypeMpris) {
 		_ = l.Send(proto.New(proto.TypeMprisRequest, map[string]any{"requestPlayerList": true}))
 	}
+	d.sendThemeTo(dev.ID)
 }
 
 // markDirty schedules a state event for all subscribers.

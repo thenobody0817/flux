@@ -66,4 +66,19 @@ class Settings(context: Context) {
                 .putLong("fromPhoto", v.from[CaptureKind.Photo] ?: -1)
                 .apply()
         }
+
+    /** The raw colors.toml of the last Omarchy theme the phone received. */
+    var themeColors: String
+        get() = prefs.getString("themeColors", "") ?: ""
+        set(v) = prefs.edit().putString("themeColors", v).apply()
+
+    /** The display name of that theme. */
+    var themeName: String
+        get() = prefs.getString("themeName", "") ?: ""
+        set(v) = prefs.edit().putString("themeName", v).apply()
+
+    /** The installed themes of the computer, 1 per line. */
+    var themeList: List<String>
+        get() = prefs.getString("themeList", "")?.split('\n')?.filter { it.isNotEmpty() } ?: emptyList()
+        set(v) = prefs.edit().putString("themeList", v.joinToString("\n")).apply()
 }

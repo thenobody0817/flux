@@ -67,6 +67,7 @@ object FluxCore {
         local = LocalCertificate.loadOrCreate(File(app.filesDir, "identity"))
         trust = TrustStore(app)
         settings = Settings(app)
+        ThemeSync.start(this)
         localWakeMacs = Android.wakeMacs()
         for (t in trust.all()) {
             val identity = Identity(t.id, t.name, t.type, 8, if (t.isFlux) listOf(Types.FLUX_TUNNEL) else emptyList(), emptyList())

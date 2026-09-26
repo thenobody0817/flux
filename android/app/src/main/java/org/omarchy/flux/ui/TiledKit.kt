@@ -27,8 +27,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -44,28 +47,55 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.omarchy.flux.core.FluxColors
+import org.omarchy.flux.core.ThemeSync
+import org.omarchy.flux.core.TokyoNight
 
 /**
  * The Tiled design: Tokyo Night colors, 12 dp tiles with 8 dp gaps, and an
  * active-window gradient border like Hyprland on Omarchy.
+ *
+ * The colors follow the active Omarchy theme of the computer. [apply] takes
+ * the palette that the phone received; [TiledTheme] calls it. The defaults
+ * are Tokyo Night, so the app looks right before the first theme arrives.
  */
 object Tn {
-    val bg = Color(0xFF16161E)
-    val tile = Color(0xFF1F2335)
-    val tileHi = Color(0xFF24283B)
-    val offTile = Color(0xFF1A1B26)
-    val line = Color(0xFF292E42)
-    val lineHi = Color(0xFF3B4261)
-    val text = Color(0xFFC0CAF5)
-    val sub = Color(0xFFA9B1D6)
-    val dim = Color(0xFF565F89)
-    val blue = Color(0xFF7AA2F7)
-    val cyan = Color(0xFF7DCFFF)
-    val green = Color(0xFF9ECE6A)
-    val magenta = Color(0xFFBB9AF7)
-    val orange = Color(0xFFFF9E64)
-    val red = Color(0xFFF7768E)
-    val yellow = Color(0xFFE0AF68)
+    var bg by mutableStateOf(Color(TokyoNight.bg)); private set
+    var tile by mutableStateOf(Color(TokyoNight.tile)); private set
+    var tileHi by mutableStateOf(Color(TokyoNight.tileHi)); private set
+    var offTile by mutableStateOf(Color(TokyoNight.offTile)); private set
+    var line by mutableStateOf(Color(TokyoNight.line)); private set
+    var lineHi by mutableStateOf(Color(TokyoNight.lineHi)); private set
+    var text by mutableStateOf(Color(TokyoNight.text)); private set
+    var sub by mutableStateOf(Color(TokyoNight.sub)); private set
+    var dim by mutableStateOf(Color(TokyoNight.dim)); private set
+    var blue by mutableStateOf(Color(TokyoNight.blue)); private set
+    var cyan by mutableStateOf(Color(TokyoNight.cyan)); private set
+    var green by mutableStateOf(Color(TokyoNight.green)); private set
+    var magenta by mutableStateOf(Color(TokyoNight.magenta)); private set
+    var orange by mutableStateOf(Color(TokyoNight.orange)); private set
+    var red by mutableStateOf(Color(TokyoNight.red)); private set
+    var yellow by mutableStateOf(Color(TokyoNight.yellow)); private set
+
+    fun apply(c: FluxColors) {
+        bg = Color(c.bg)
+        tile = Color(c.tile)
+        tileHi = Color(c.tileHi)
+        offTile = Color(c.offTile)
+        line = Color(c.line)
+        lineHi = Color(c.lineHi)
+        text = Color(c.text)
+        sub = Color(c.sub)
+        dim = Color(c.dim)
+        blue = Color(c.blue)
+        cyan = Color(c.cyan)
+        green = Color(c.green)
+        magenta = Color(c.magenta)
+        orange = Color(c.orange)
+        red = Color(c.red)
+        yellow = Color(c.yellow)
+    }
 }
 
 val TileShape = RoundedCornerShape(12.dp)
@@ -88,6 +118,10 @@ fun activeBorder(from: Color = Tn.blue, to: Color = Tn.cyan) = BorderStroke(2.dp
  */
 @Composable
 fun TiledTheme(content: @Composable () -> Unit) {
+    // Follow the active Omarchy theme of the computer. Tn holds Compose
+    // state, so the tiles and this scheme rebuild when the palette changes.
+    val colors by ThemeSync.colors.collectAsStateWithLifecycle()
+    LaunchedEffect(colors) { Tn.apply(colors) }
     val scheme = darkColorScheme(
         primary = Tn.blue, onPrimary = Tn.bg,
         primaryContainer = Tn.tileHi, onPrimaryContainer = Tn.text,

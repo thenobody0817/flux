@@ -64,6 +64,13 @@ const (
 	// The first kind is "permit", which routes an opencode permission prompt
 	// to the phone. docs/eyec.md describes it.
 	TypeFluxEyec = "flux.eyec"
+	// TypeFluxTheme carries the active Omarchy theme to the phone: the name,
+	// the mode, the raw colors.toml text, and the list of installed themes.
+	// The desktop sends it.
+	TypeFluxTheme = "flux.theme"
+	// TypeFluxThemeRequest asks the desktop to list the themes or to apply
+	// one. The phone sends it.
+	TypeFluxThemeRequest = "flux.theme.request"
 )
 
 // Incoming lists the packet types that Flux accepts. The phone enables a
@@ -74,7 +81,7 @@ var Incoming = []string{
 	TypeRunCommandRequest, TypeMpris, TypeMprisRequest, TypeSftp,
 	TypeSftpRequest, TypeSmsMessages, TypeConnectivity, TypeTelephony,
 	TypeFluxTunnel, TypeFluxWebcam, TypeFluxDnd, TypeFluxMic, TypeFluxScreen,
-	TypeFluxApprove, TypeFluxEyec, MicSpeakerCap,
+	TypeFluxApprove, TypeFluxEyec, TypeFluxThemeRequest, MicSpeakerCap,
 }
 
 // Outgoing lists the packet types that Flux sends.
@@ -84,7 +91,7 @@ var Outgoing = []string{
 	TypeFindMyPhone, TypeRunCommand, TypeMpris, TypeMprisRequest,
 	TypeSftpRequest, TypeSmsRequest, TypeSmsConversations,
 	TypeSmsConversation, TypeSftp, TypeFluxWebcam, TypeFluxDnd,
-	TypeFluxMic, TypeFluxScreen, TypeFluxApprove, TypeFluxEyec, MicSpeakerCap,
+	TypeFluxMic, TypeFluxScreen, TypeFluxApprove, TypeFluxEyec, TypeFluxTheme, MicSpeakerCap,
 }
 
 // Identity is the body of a kdeconnect.identity packet.

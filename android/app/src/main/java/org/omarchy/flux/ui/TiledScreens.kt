@@ -72,6 +72,7 @@ import org.omarchy.flux.core.DeviceUi
 import org.omarchy.flux.core.FluxCore
 import org.omarchy.flux.core.Plugins
 import org.omarchy.flux.core.Share
+import org.omarchy.flux.core.ThemeSync
 import org.omarchy.flux.core.UiState
 import org.omarchy.flux.core.Wake
 import org.omarchy.flux.screen.ScreenMirrorService
@@ -339,6 +340,7 @@ fun TiledHomeScreen(
     fun guarded(action: () -> Unit): () -> Unit = { if (d.online) action() else FluxCore.toast("${d.name} is not reachable") }
     val on = d.online
     var wakeDialog by remember(d.id) { mutableStateOf(false) }
+    val themeName by ThemeSync.name.collectAsState()
 
     fun captureToggle(kind: CaptureKind, current: Boolean) {
         when {
@@ -424,6 +426,9 @@ fun TiledHomeScreen(
             }
             LineTile(Ic.folderOpen, "Browse PC", Tn.magenta, guarded { onNavigate("browse") }, Modifier.fillMaxWidth().height(TileUnit), on, trailing = "~/ read-only")
             LineTile(Ic.text, "Ask eyec", Tn.cyan, guarded { onNavigate("eyec") }, Modifier.fillMaxWidth().height(TileUnit), on, trailing = "screen chat")
+            if (d.themeControl) {
+                LineTile(Ic.tune, "Theme", Tn.magenta, guarded { onNavigate("theme") }, Modifier.fillMaxWidth().height(TileUnit), on, trailing = themeName.ifEmpty { "Omarchy" })
+            }
         }
 
         SectionLabel("Sync")

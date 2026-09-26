@@ -97,6 +97,21 @@ Enable **Wake when away** to send the packet automatically when the phone
 is off Wi-Fi and the computer is unreachable.
 See [everyday use](features.md#wake-a-sleeping-computer).
 
+## Theme
+
+`fluxd` reads the active Omarchy theme from
+`~/.local/state/omarchy/current/theme/colors.toml`, the same file that the
+Flux window uses, and sends it to the phone as a `flux.theme` packet on
+connect and after every change. The phone follows the colors. The path
+honors `XDG_STATE_HOME`.
+
+The phone can also apply a theme: it sends `flux.theme.request`, and
+`fluxd` runs `omarchy theme set <name>`. The name must be one of the
+installed themes from `omarchy theme list`.
+
+Set `FLUX_THEME_FILE` to read another `colors.toml`, for example in a
+test.
+
 ## Data paths
 
 | Path | Content |

@@ -112,6 +112,23 @@ Wake-on-LAN usually works from suspend, not from a full shutdown, and some
 USB network adapters do not support it.
 See [troubleshooting](troubleshooting.md#wake-on-lan-does-not-work).
 
+## Follow the Omarchy theme
+
+Flux for Android uses the active Omarchy theme of the connected
+computer. `fluxd` reads the same `colors.toml` that the Flux window uses,
+and sends it to the phone on connect and after every theme change. The app
+follows it right away, so its tiles, accents, and dialogs match your
+desktop.
+
+The phone also applies the theme on the computer. On the device page, open
+**Theme** to see the installed Omarchy themes and which one is active. Tap
+one to apply it: the computer switches theme, and the phone follows the
+new colors. The app keeps the last theme, so it looks right before it
+connects and while the computer is offline.
+
+The app follows the connected computer. With more than one computer, the
+theme of the last one that sent its theme is used.
+
 ## Do Not Disturb
 
 Enable **Sync Do Not Disturb** on the phone's device page.

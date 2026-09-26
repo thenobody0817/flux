@@ -189,6 +189,7 @@ fun FluxRoot(activity: MainActivity) {
                 route.page == "mic" -> org.omarchy.flux.mic.MicScreen(device, ::pop)
                 route.page == "commands" -> TiledCommandsScreen(device, ::pop)
                 route.page == "eyec" -> EyecScreen(device, ::pop)
+                route.page == "theme" -> ThemeScreen(device, ::pop)
                 route.page == "browse" -> BrowseScreen(device, state.browse, ::pop)
                 // Debug builds open a mode with "camera:<mode>".
                 route.page.startsWith("camera") -> key(route.page) {

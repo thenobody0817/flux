@@ -63,6 +63,8 @@ data class DeviceUi(
     val wakeEnabled: Boolean = false,
     /** True when at least one hardware address is known, so a wake can be sent. */
     val canWake: Boolean = false,
+    /** True when the computer accepts flux.theme.request, so the phone can pick a theme. */
+    val themeControl: Boolean = false,
 )
 
 /** A snapshot of the whole app for the UI. */

@@ -54,6 +54,12 @@ object Types {
 
     /** Flux extension: the computer asks this phone to answer an eyec prompt. */
     const val FLUX_EYEC = "flux.eyec"
+
+    /** Flux extension: the computer sends its active Omarchy theme. */
+    const val FLUX_THEME = "flux.theme"
+
+    /** Flux extension: this phone asks the computer to list or apply a theme. */
+    const val FLUX_THEME_REQUEST = "flux.theme.request"
 }
 
 /** Packet types that the phone accepts. */
@@ -63,6 +69,7 @@ val INCOMING = listOf(
     Types.NOTIFICATION_ACTION, Types.FIND_MY_PHONE, Types.RUN_COMMAND, Types.MPRIS,
     Types.SFTP, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
+    Types.FLUX_THEME,
 )
 
 /** Packet types that the phone sends. */
@@ -71,6 +78,7 @@ val OUTGOING = listOf(
     Types.SHARE_UPDATE, Types.NOTIFICATION, Types.FIND_MY_PHONE, Types.RUN_COMMAND_REQUEST,
     Types.MPRIS_REQUEST, Types.SFTP_REQUEST, Types.TELEPHONY, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
+    Types.FLUX_THEME_REQUEST,
 )
 
 /** The body of a kdeconnect.identity packet. */

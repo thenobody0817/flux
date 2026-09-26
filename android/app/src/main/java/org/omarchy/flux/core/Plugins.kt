@@ -79,6 +79,7 @@ object Plugins {
             Types.FLUX_SCREEN -> org.omarchy.flux.screen.ScreenSession.onPacket(core, d, p)
             Types.FLUX_APPROVE -> Approvals.onPacket(core, d, p)
             Types.FLUX_EYEC -> Eyec.onPacket(core, d, p)
+            Types.FLUX_THEME -> ThemeSync.onPacket(core, p)
         }
     }
 
