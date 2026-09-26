@@ -15,7 +15,7 @@ Scope {
     return (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/flux/fluxd.sock"
   }
 
-  readonly property bool connected: sock.connected
+  readonly property bool connected: !!sock && sock.connected
   // True after the first connection attempt ends, so the window does not
   // show "fluxd is not running" while the first attempt is open.
   property bool attempted: false
@@ -35,7 +35,7 @@ Scope {
   property var pending: ({})
 
   function call(method, params, cb) {
-    if (!sock.connected) {
+    if (!root.connected) {
       var offline = { code: "offline", message: "fluxd is not running" }
       if (cb) cb(offline, null)
       else toast(offline.message)
@@ -70,10 +70,7 @@ Scope {
     })
     proc.done = function (code, text) {
       var ok = code === 0
-      if (ok) {
-        sock.connected = false
-        sock.connected = true
-      }
+      if (ok) root.reconnect()
       try { cb(ok, ok ? "" : "systemctl could not start fluxd. Run: journalctl --user -u fluxd") } catch (e) {}
     }
     proc.running = true
@@ -119,30 +116,55 @@ Scope {
     }
   }
 
-  Socket {
-    id: sock
-    path: root.socketPath
-    connected: true
-    parser: SplitParser {
-      onRead: data => root.handle(data)
+  // Quickshell 0.3.1 leaves its Socket wedged after a failed reconnect, so a
+  // dropped fluxd can never be reached again by toggling `connected`. Rebuild
+  // the Socket from scratch on every retry instead.
+  readonly property var sock: sockLoader.item
+
+  function reconnect() {
+    root.attempted = true
+    sockLoader.active = false
+    rebuild.start()
+  }
+
+  Timer {
+    id: rebuild
+    interval: 0
+    onTriggered: sockLoader.active = true
+  }
+
+  Loader {
+    id: sockLoader
+    sourceComponent: sockComponent
+  }
+
+  Component {
+    id: sockComponent
+    Socket {
+      id: socket
+      path: root.socketPath
+      connected: true
+      parser: SplitParser {
+        onRead: data => root.handle(data)
+      }
+      onConnectedChanged: {
+        root.attempted = true
+        if (connected) {
+          socket.write(JSON.stringify({ id: root.nextId++, method: "subscribe", params: {} }) + "\n")
+          socket.flush()
+        } else {
+          root.pending = ({})
+        }
+      }
+      onError: root.attempted = true
     }
-    onConnectedChanged: {
-      root.attempted = true
-      if (connected) root.call("subscribe", {}, null)
-      else root.pending = ({})
-    }
-    onError: root.attempted = true
   }
 
   Timer {
     interval: 2000
     repeat: true
-    running: !sock.connected
-    onTriggered: {
-      root.attempted = true
-      sock.connected = false
-      sock.connected = true
-    }
+    running: !root.connected
+    onTriggered: root.reconnect()
   }
 
   Timer {
