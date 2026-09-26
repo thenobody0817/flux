@@ -41,7 +41,7 @@ class EyecActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FluxCore.init(this)
-        setContent { FluxTheme { Screen() } }
+        setContent { TiledTheme { Screen() } }
     }
 
     @Composable
