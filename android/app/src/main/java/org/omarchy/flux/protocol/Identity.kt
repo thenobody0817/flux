@@ -72,6 +72,13 @@ data class Identity(
     val incoming: List<String>,
     val outgoing: List<String>,
     val tcpPort: Int = 0,
+    /**
+     * Flux extension: the hardware addresses of this device's physical
+     * network interfaces. A computer stores them and sends a Wake-on-LAN
+     * magic packet to each when this device is unreachable. Other KDE
+     * Connect peers ignore the field.
+     */
+    val wakeMacs: List<String> = emptyList(),
 ) {
     /**
      * Returns the identity packet. Only the UDP broadcast carries [tcpPort].
@@ -88,6 +95,7 @@ data class Identity(
             "outgoingCapabilities" to outgoing,
         )
         if (withPort && tcpPort > 0) fields += "tcpPort" to tcpPort
+        if (wakeMacs.isNotEmpty()) fields += "fluxWakeMacs" to wakeMacs
         if (target != null) {
             fields += "targetDeviceId" to target.deviceId
             fields += "targetProtocolVersion" to target.protocolVersion
@@ -111,14 +119,20 @@ data class Identity(
                 incoming = p.strings("incomingCapabilities"),
                 outgoing = p.strings("outgoingCapabilities"),
                 tcpPort = p.int("tcpPort") ?: 0,
+                wakeMacs = p.strings("fluxWakeMacs").filter { validMac(it) },
             )
         }
 
-        fun self(deviceId: String, name: String, tcpPort: Int) = Identity(
-            deviceId, cleanName(name), "phone", PROTOCOL_VERSION, INCOMING, OUTGOING, tcpPort,
+        fun self(deviceId: String, name: String, tcpPort: Int, wakeMacs: List<String> = emptyList()) = Identity(
+            deviceId, cleanName(name), "phone", PROTOCOL_VERSION, INCOMING, OUTGOING, tcpPort, wakeMacs.filter { validMac(it) },
         )
     }
 }
+
+private val macRegex = Regex("^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$")
+
+/** Reports whether [mac] is a colon- or dash-separated hardware address. */
+fun validMac(mac: String): Boolean = mac.trim().matches(macRegex)
 
 private val deviceIdRegex = Regex("^[a-zA-Z0-9_-]{32,38}$")
 private val invalidNameChars = Regex("[\"',;:.!?()\\[\\]<>]")

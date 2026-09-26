@@ -22,6 +22,11 @@ type TrustedDevice struct {
 	// LastPort is the TCP port of the device. With LastIP, fluxd connects
 	// out to the device, so no incoming connection is necessary.
 	LastPort int `json:"lastPort,omitempty"`
+	// Remote is an address that is reachable when the phone is away from
+	// the local network, for example a Tailscale MagicDNS name or an IP.
+	// It may include a port; without one fluxd uses the default port.
+	// Empty means the device is only reachable on the local network.
+	Remote string `json:"remote,omitempty"`
 	// Disabled lists the plugins that the user turned off for this device.
 	Disabled []string `json:"disabledPlugins,omitempty"`
 }

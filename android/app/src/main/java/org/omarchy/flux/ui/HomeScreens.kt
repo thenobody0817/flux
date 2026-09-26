@@ -23,7 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -49,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -59,6 +63,7 @@ import org.omarchy.flux.core.FluxCore
 import org.omarchy.flux.core.Plugins
 import org.omarchy.flux.core.Share
 import org.omarchy.flux.core.UiState
+import org.omarchy.flux.core.Wake
 import org.omarchy.flux.screen.ScreenMirrorService
 import org.omarchy.flux.screen.ScreenSession
 import org.omarchy.flux.service.FluxNotificationListener
@@ -299,7 +304,7 @@ fun HomeScreen(
     )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TopBar(d.name, onBack, subtitle = "${typeLabel(d)} · ${d.ip}") { DeviceMenu(d.name, onUnpair) }
-        StatusCard(d)
+        StatusCard(d, onWake = { FluxCore.wake(d.id, manual = true) })
         Column(Modifier.padding(horizontal = Gutter, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             for (row in actions.chunked(2)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -358,6 +363,20 @@ fun HomeScreen(
                 FluxCore.setSyncDnd(!state.syncDnd)
             }
         }
+        var wakeDialog by remember(d.id) { mutableStateOf(false) }
+        SwitchRow(
+            Ic.power,
+            "Wake when away",
+            when {
+                d.wakeEnabled && d.wakeHost.isNotEmpty() -> "On 5G, send a magic packet to ${d.wakeHost}"
+                d.wakeEnabled -> "On 5G, send a magic packet to the local network"
+                d.canWake -> "Wake ${d.name} when this phone is away from Wi-Fi"
+                else -> "Needs the hardware address of ${d.name}, learned while it is connected"
+            },
+            checked = d.wakeEnabled,
+        ) { FluxCore.setWakeEnabled(d.id, !d.wakeEnabled) }
+        WakeSettingsRow(d) { wakeDialog = true }
+        if (wakeDialog) WakeDialog(d) { wakeDialog = false }
         CaptureSwitches(state)
         Spacer(Modifier.height(96.dp))
     }
@@ -407,7 +426,7 @@ private fun CaptureSwitches(state: UiState) {
 
 /** The connection and the battery of the computer. A computer that is not reachable gets help and a retry. */
 @Composable
-private fun StatusCard(d: DeviceUi) {
+private fun StatusCard(d: DeviceUi, onWake: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Card(
         Modifier.padding(horizontal = Gutter).fillMaxWidth(),
@@ -436,13 +455,90 @@ private fun StatusCard(d: DeviceUi) {
                     }
                 } else {
                     Text(
-                        "Check that Flux runs on ${d.name}, and that both are on the same Wi-Fi.",
+                        if (d.canWake) "Wake ${d.name} over the network, or check that Flux runs on it."
+                        else "Check that Flux runs on ${d.name}, and that both are on the same Wi-Fi.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = scheme.onSurfaceVariant,
                     )
                 }
             }
-            if (!d.online) TextButton(onClick = { FluxCore.rediscover() }) { Text("Retry") }
+            if (!d.online) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (d.canWake) TextButton(onClick = onWake) { Text("Wake") }
+                    TextButton(onClick = { FluxCore.rediscover() }) { Text("Retry") }
+                }
+            }
         }
     }
+}
+
+/** Opens the Wake-on-LAN settings of a computer. */
+@Composable
+private fun WakeSettingsRow(d: DeviceUi, onClick: () -> Unit) {
+    val target = d.wakeHost.ifEmpty { Wake.BROADCAST } + ":" + d.wakePort
+    ListItem(
+        headlineContent = { Text("Wake settings") },
+        supportingContent = { Text("$target · ${d.wakeMacs.size} hardware address(es)") },
+        leadingContent = { Sym(Ic.settings) },
+        trailingContent = { Sym(Ic.chevron) },
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+    )
+}
+
+/** The Wake-on-LAN settings: the hardware address, the reachable address, and the port. */
+@Composable
+private fun WakeDialog(d: DeviceUi, onDismiss: () -> Unit) {
+    var mac by remember(d.id) { mutableStateOf(d.wakeMacs.firstOrNull().orEmpty()) }
+    var host by remember(d.id) { mutableStateOf(d.wakeHost) }
+    var port by remember(d.id) { mutableStateOf(d.wakePort.toString()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Sym(Ic.power) },
+        title = { Text("Wake ${d.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Away from home, send the magic packet to an address that reaches the computer's network, for example a DDNS name with a UDP port forward.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = mac,
+                    onValueChange = { mac = it },
+                    label = { Text("Hardware address") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = host,
+                    onValueChange = { host = it },
+                    label = { Text("Wake address") },
+                    placeholder = { Text("home.example.com") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = port,
+                    onValueChange = { v -> port = v.filter { it.isDigit() }.take(5) },
+                    label = { Text("Port") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "An empty address uses the local broadcast, which works only on the computer's Wi-Fi.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                FluxCore.setWakeConfig(d.id, host, port.toIntOrNull() ?: Wake.DEFAULT_PORT, mac)
+                onDismiss()
+            }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

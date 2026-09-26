@@ -172,6 +172,7 @@ type params struct {
 	Key       string          `json:"key"`
 	Name      string          `json:"name"`
 	Command   string          `json:"command"`
+	Remote    string          `json:"remote"`
 	Value     any             `json:"value"`
 	Config    json.RawMessage `json:"config"`
 	Reset     bool            `json:"reset"`
@@ -230,6 +231,8 @@ func (d *Daemon) Call(ctx context.Context, method string, raw json.RawMessage) (
 			return nil, apiErr("not_found", "No command with ID %s", p.ID)
 		}
 		return ok, d.runLocal(c)
+	case "device.remote":
+		return ok, d.SetRemote(p.Device, p.Remote)
 	case "settings.set":
 		return ok, d.setSetting(p.Key, p.Value)
 	}
@@ -404,6 +407,52 @@ func (d *Daemon) setSetting(key string, value any) error {
 		d.announce()
 	}
 	d.markDirty()
+	return nil
+}
+
+// SetRemote stores an address for a device that is reachable away from
+// the local network, for example a Tailscale MagicDNS name. The empty
+// address clears it. fluxd dials the address when the device is offline.
+func (d *Daemon) SetRemote(key, addr string) error {
+	addr = strings.TrimSpace(addr)
+	if addr != "" {
+		if host, _ := remoteAddr(addr); host == "" {
+			return apiErr("bad_params", "Give a host, for example omarchy.tailnet.ts.net")
+		}
+	}
+	var dev *Device
+	if key != "" {
+		if dev = d.lookup(key); dev == nil {
+			return apiErr("not_found", "No device named %q", key)
+		}
+	} else {
+		d.mu.Lock()
+		var paired []*Device
+		for _, x := range d.devices {
+			if x.Paired {
+				paired = append(paired, x)
+			}
+		}
+		d.mu.Unlock()
+		if len(paired) != 1 {
+			return apiErr("no_device", "Use --device NAME to pick the device")
+		}
+		dev = paired[0]
+	}
+	d.mu.Lock()
+	dev.Remote = addr
+	id, name := dev.ID, dev.Name
+	d.mu.Unlock()
+	if err := d.trust.Update(id, func(t *config.TrustedDevice) { t.Remote = addr }); err != nil {
+		return err
+	}
+	if addr == "" {
+		d.logf("remote address for %s cleared", name)
+	} else {
+		d.logf("remote address for %s: %s", name, addr)
+	}
+	d.markDirty()
+	go d.dialKnown()
 	return nil
 }
 

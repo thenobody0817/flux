@@ -92,6 +92,26 @@ pause_media_on_call = false
 
 Reload with `systemctl --user reload fluxd`.
 
+## Wake a sleeping computer
+
+A paired computer advertises the hardware addresses of its network
+interfaces. The phone stores them with the device, so it can wake the
+computer with a Wake-on-LAN magic packet.
+
+On the phone's device page, set a **Wake address**: a host and UDP port
+that deliver the packet to the computer's network. Use the local broadcast
+only when the phone is on the computer's Wi-Fi. To wake the computer from
+5G, forward UDP 9 on the home router to the computer's LAN address (and
+give the computer a DHCP reservation), or point the phone at a relay on an
+always-on device.
+
+Turn on **Wake when away** to send the packet automatically when the phone
+is off Wi-Fi and the computer is unreachable. The **Wake** button on the
+**Not reachable** card sends it at any time.
+Wake-on-LAN usually works from suspend, not from a full shutdown, and some
+USB network adapters do not support it.
+See [troubleshooting](troubleshooting.md#wake-on-lan-does-not-work).
+
 ## Do Not Disturb
 
 Enable **Sync Do Not Disturb** on the phone's device page.

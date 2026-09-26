@@ -52,6 +52,15 @@ data class DeviceUi(
     val player: PlayerState?,
     val commands: List<RemoteCommand>,
     val commandsLoaded: Boolean,
+    /** The hardware addresses to wake, with the manual override first when it is set. */
+    val wakeMacs: List<String> = emptyList(),
+    /** The reachable address that delivers the magic packet, or empty for the local broadcast. */
+    val wakeHost: String = "",
+    val wakePort: Int = 9,
+    /** Sends a magic packet when this phone is away and the device is unreachable. */
+    val wakeEnabled: Boolean = false,
+    /** True when at least one hardware address is known, so a wake can be sent. */
+    val canWake: Boolean = false,
 )
 
 /** A snapshot of the whole app for the UI. */

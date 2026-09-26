@@ -46,6 +46,7 @@ object FluxCore {
     private var browse: BrowseState? = null
     private var ringingFrom: String? = null
     private var initialized = false
+    private var localWakeMacs: List<String> = emptyList()
 
     /** True while an activity of the app is on screen. */
     @Volatile var foreground = false
@@ -66,6 +67,7 @@ object FluxCore {
         local = LocalCertificate.loadOrCreate(File(app.filesDir, "identity"))
         trust = TrustStore(app)
         settings = Settings(app)
+        localWakeMacs = Android.wakeMacs()
         for (t in trust.all()) {
             val identity = Identity(t.id, t.name, t.type, 8, if (t.isFlux) listOf(Types.FLUX_TUNNEL) else emptyList(), emptyList())
             val d = Device(this, identity)
@@ -82,7 +84,7 @@ object FluxCore {
     /** The TLS context of the running backend, for payload transfers. */
     val tls: org.omarchy.flux.net.Tls? get() = backend?.tls
 
-    fun identity(tcpPort: Int): Identity = Identity.self(local.deviceId, deviceName, tcpPort)
+    fun identity(tcpPort: Int): Identity = Identity.self(local.deviceId, deviceName, tcpPort, localWakeMacs)
 
     // ---------------------------------------------------------------- network
 
@@ -145,10 +147,20 @@ object FluxCore {
             d.lastIp = link.address.hostAddress ?: ""
             if (trust.get(id) != null) {
                 d.pairState = PairState.Paired
-                trust.update(id) { it.copy(name = link.identity.deviceName, lastIp = d.lastIp, isFlux = link.identity.isFlux) }
+                trust.update(id) {
+                    it.copy(
+                        name = link.identity.deviceName,
+                        lastIp = d.lastIp,
+                        isFlux = link.identity.isFlux,
+                        wakeMacs = link.identity.wakeMacs.ifEmpty { it.wakeMacs },
+                    )
+                }
             }
             link.start(onPacket = { p -> locked { dispatch(d, p) } }, onClose = { detach(d, link) })
-            if (d.paired) onConnected(d)
+            if (d.paired) {
+                Wake.clear(id)
+                onConnected(d)
+            }
         }
     }
 
@@ -159,6 +171,8 @@ object FluxCore {
             if (d.pairState == PairState.Requested || d.pairState == PairState.Incoming) d.pairState = PairState.None
             if (!d.paired) devices.remove(d.id)
         }
+        // The computer may have gone to sleep. Try to wake it when this phone is away.
+        io.execute { wakeAway() }
     }
 
     /** Runs the block under the core lock and publishes the new state. */
@@ -300,6 +314,64 @@ object FluxCore {
         }
         CaptureWatch.setKind(app, kind, on)
         CaptureWatch.refresh(app)
+        publish()
+    }
+
+    // ------------------------------------------------------------------ wake
+
+    /** Sends a Wake-on-LAN magic packet to a paired computer. */
+    fun wake(id: String, manual: Boolean): Boolean {
+        val trusted = synchronized(lock) { trust.get(id) }
+        val name = synchronized(lock) { devices[id]?.identity?.deviceName } ?: trusted?.name ?: "the computer"
+        val macs = trusted?.wakeMacList().orEmpty()
+        if (macs.isEmpty()) {
+            if (manual) toast("No hardware address for $name yet. Add one in the wake settings.")
+            return false
+        }
+        val dest = Wake.target(trusted?.wakeHost.orEmpty(), trusted?.wakePort ?: Wake.DEFAULT_PORT, Android.onWifi(app))
+        if (dest == null) {
+            if (manual) toast("Set a wake address for $name, or connect to its Wi-Fi.")
+            return false
+        }
+        if (!manual && !Wake.allowAuto(id)) return false
+        io.execute {
+            val sent = Wake.send(dest.first, dest.second, macs)
+            if (manual) toast(if (sent > 0) "Waking $name…" else "Could not send the wake packet to ${dest.first}")
+        }
+        return true
+    }
+
+    /**
+     * Wakes each paired computer that is unreachable while this phone is off
+     * Wi-Fi. The phone is on 5G then, and the computer needs a reachable
+     * wake address. Each computer is attempted at most once per interval.
+     */
+    fun wakeAway() {
+        if (Android.onWifi(app)) return
+        val ids = synchronized(lock) {
+            devices.values
+                .filter { it.paired && !it.online && trust.get(it.id)?.wakeEnabled == true }
+                .map { it.id }
+        }
+        for (id in ids) wake(id, manual = false)
+    }
+
+    /** Turns the automatic wake of one computer on or off. */
+    fun setWakeEnabled(id: String, on: Boolean) {
+        trust.update(id) { it.copy(wakeEnabled = on) }
+        if (on) io.execute { wakeAway() }
+        publish()
+    }
+
+    /** Stores the wake address and the optional hardware address of one computer. */
+    fun setWakeConfig(id: String, host: String, port: Int, macOverride: String) {
+        trust.update(id) {
+            it.copy(
+                wakeHost = host.trim(),
+                wakePort = if (port in 1..65535) port else Wake.DEFAULT_PORT,
+                wakeMacOverride = macOverride.trim(),
+            )
+        }
         publish()
     }
 }

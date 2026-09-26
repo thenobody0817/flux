@@ -36,7 +36,12 @@ object DebugDemo {
                 ),
                 commandsLoaded = true,
             ),
-            device(OFFLINE, "omarchy-desk", "desktop", "192.168.2.40", paired = true, online = false),
+            device(OFFLINE, "omarchy-desk", "desktop", "192.168.2.40", paired = true, online = false).copy(
+                wakeMacs = listOf("10:06:48:c0:1b:f9"),
+                wakeHost = "home.example.com",
+                wakeEnabled = true,
+                canWake = true,
+            ),
             device(NEW, "framework-13", "laptop", "192.168.2.77", paired = false, online = true),
         )
     }

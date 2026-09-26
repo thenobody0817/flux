@@ -231,21 +231,26 @@ func (p *Provider) udpLoop(ctx context.Context) {
 		if p.cfg.OnIdentity != nil {
 			p.cfg.OnIdentity(id, ip)
 		}
-		if p.cfg.HasLink(id.DeviceID) || !p.shouldAttempt(id.DeviceID) {
+		if p.cfg.HasLink(id.DeviceID) || !p.shouldAttempt(attemptKey(id.DeviceID, ip)) {
 			continue
 		}
 		go p.connect(ctx, ip, id)
 	}
 }
 
-// shouldAttempt limits outgoing connections to 1 per device each second.
-func (p *Provider) shouldAttempt(deviceID string) bool {
+// attemptKey identifies one connection attempt. The address is part of the
+// key, so a device with both a local and a remote address gets one try for
+// each on every round.
+func attemptKey(deviceID, addr string) string { return deviceID + "@" + addr }
+
+// shouldAttempt limits outgoing connections to 1 per address each second.
+func (p *Provider) shouldAttempt(key string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if t, ok := p.attempts[deviceID]; ok && time.Since(t) < time.Second {
+	if t, ok := p.attempts[key]; ok && time.Since(t) < time.Second {
 		return false
 	}
-	p.attempts[deviceID] = time.Now()
+	p.attempts[key] = time.Now()
 	return true
 }
 
@@ -257,7 +262,7 @@ func (p *Provider) Dial(ctx context.Context, ip string, port int, target proto.I
 	if port <= 0 || port > 65535 || !proto.ValidDeviceID(target.DeviceID) {
 		return
 	}
-	if target.DeviceID == p.cfg.Identity().DeviceID || p.cfg.HasLink(target.DeviceID) || !p.shouldAttempt(target.DeviceID) {
+	if target.DeviceID == p.cfg.Identity().DeviceID || p.cfg.HasLink(target.DeviceID) || !p.shouldAttempt(attemptKey(target.DeviceID, ip)) {
 		return
 	}
 	if target.ProtocolVersion == 0 {
@@ -277,7 +282,7 @@ func (p *Provider) connect(ctx context.Context, ip string, udpID proto.Identity)
 		// A failed attempt must not block the next trigger, for example the
 		// UDP broadcast of a device that starts a moment later.
 		p.mu.Lock()
-		delete(p.attempts, udpID.DeviceID)
+		delete(p.attempts, attemptKey(udpID.DeviceID, ip))
 		p.mu.Unlock()
 		return
 	}
