@@ -28,6 +28,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("callAlerts", false)
         set(v) = prefs.edit().putBoolean("callAlerts", v).apply()
 
+    /** Lets the computers read this phone's texts and send replies. It needs the SMS permission. */
+    var shareSms: Boolean
+        get() = prefs.getBoolean("shareSms", false)
+        set(v) = prefs.edit().putBoolean("shareSms", v).apply()
+
     /** Syncs Do Not Disturb with the computers. It needs notification policy access. */
     var syncDnd: Boolean
         get() = prefs.getBoolean("syncDnd", true)
@@ -81,4 +86,13 @@ class Settings(context: Context) {
     var themeList: List<String>
         get() = prefs.getString("themeList", "")?.split('\n')?.filter { it.isNotEmpty() } ?: emptyList()
         set(v) = prefs.edit().putString("themeList", v.joinToString("\n")).apply()
+
+    /**
+     * The HTTPS address of the computer running OmarchyRemote, without `/native/`, for the
+     * desktop shell on the device home screen. Blank until the user adds a host, and then
+     * the shell offers it on startup. See docs/shell.md.
+     */
+    var shellUrl: String
+        get() = (prefs.getString("shellUrl", "") ?: "").trim()
+        set(v) = prefs.edit().putString("shellUrl", v.trim()).apply()
 }

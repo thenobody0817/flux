@@ -18,6 +18,7 @@ mlkitBarcodeScanning = "17.3.0"
 mlkitDocumentScanner = "16.0.0"
 biometric = "1.1.0"
 fragment = "1.8.9"
+webkit = "1.14.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -50,6 +51,7 @@ mlkit-document-scanner = { group = "com.google.android.gms", name = "play-servic
 
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragment" }
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

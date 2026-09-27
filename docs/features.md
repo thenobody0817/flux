@@ -52,6 +52,8 @@ flux notify "Backup done" "412 files, 2.1 GB"
 The phone uses the **From computers** notification channel.
 The desktop name identifies the sender.
 Use the Messages page or [SMS command](cli.md#share-and-communicate) to send text messages through the phone.
+Turn on **Text messages** on the phone's device screen and allow SMS access;
+the Messages page then shows the phone's conversations and sends replies.
 
 ## Media and desktop commands
 

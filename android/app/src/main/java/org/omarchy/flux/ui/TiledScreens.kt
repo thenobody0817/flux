@@ -71,6 +71,7 @@ import org.omarchy.flux.core.CaptureWatch
 import org.omarchy.flux.core.DeviceUi
 import org.omarchy.flux.core.FluxCore
 import org.omarchy.flux.core.Plugins
+import org.omarchy.flux.core.Settings as FluxSettings
 import org.omarchy.flux.core.Share
 import org.omarchy.flux.core.ThemeSync
 import org.omarchy.flux.core.UiState
@@ -78,6 +79,7 @@ import org.omarchy.flux.core.Wake
 import org.omarchy.flux.screen.ScreenMirrorService
 import org.omarchy.flux.screen.ScreenSession
 import org.omarchy.flux.service.FluxNotificationListener
+import org.omarchy.flux.shell.ShellActivity
 
 private fun typeLabel(d: DeviceUi): String = if (d.isFlux) "Omarchy" else d.type.replaceFirstChar { it.uppercase() }
 
@@ -168,6 +170,9 @@ fun TiledDevicesScreen(
                     T("Open Flux on the computer, and use the same Wi-Fi network as this phone.", size = 13, color = Tn.sub)
                 }
             }
+
+            SectionLabel("Desktop shell")
+            ShellTile()
             Spacer(Modifier.height(96.dp))
         }
     }
@@ -190,6 +195,67 @@ private fun AppMenu() {
             )
         }
     }
+}
+
+/**
+ * The OmarchyRemote desktop shell. It reaches the computer over its own HTTPS address rather
+ * than over the Flux pairing, so it sits on the device list and asks for that address once.
+ */
+@Composable
+private fun ShellTile() {
+    val context = LocalContext.current
+    var url by remember { mutableStateOf(FluxSettings(context).shellUrl) }
+    var editing by remember { mutableStateOf(false) }
+    val configured = url.isNotEmpty()
+    LineTile(
+        Ic.desktop, "Desktop shell", Tn.blue,
+        {
+            if (configured) {
+                runCatching { context.startActivity(Intent(context, ShellActivity::class.java)) }
+            } else {
+                editing = true
+            }
+        },
+        Modifier.fillMaxWidth().height(TileUnit),
+        trailing = if (configured) url else "not set up",
+    )
+    if (editing) {
+        ShellHostDialog(url) { saved ->
+            url = if (saved == null) FluxSettings(context).shellUrl else saved
+            editing = false
+        }
+    }
+}
+
+/** The HTTPS address of the computer running OmarchyRemote, without `/native/`. */
+@Composable
+private fun ShellHostDialog(current: String, onDismiss: (String?) -> Unit) {
+    var url by remember { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = { onDismiss(null) },
+        title = { T("Desktop shell", size = 18, weight = FontWeight.SemiBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                T(
+                    "The address of the computer running Omarchy Remote, as this phone sees it. " +
+                        "Over your own network that is a Tailscale name such as https://desktop.example.ts.net.",
+                    size = 13, color = Tn.sub,
+                )
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("Computer address") },
+                    placeholder = { Text("https://desktop.example.ts.net") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onDismiss(url.trim()) }, enabled = url.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = { onDismiss(null) }) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -316,6 +382,14 @@ fun TiledHomeScreen(
             FluxCore.toast("Call alerts need phone access. Allow it in the app settings.")
         }
     }
+    // The Messages page needs the SMS permission to read and send texts.
+    val askSms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.READ_SMS] == true) {
+            FluxCore.setShareSms(true)
+        } else {
+            FluxCore.toast("Text messages need SMS access. Allow it in the app settings.")
+        }
+    }
     // The first capture switch that turns on asks for access to photos.
     var asking by remember { mutableStateOf<CaptureKind?>(null) }
     val askPhotos = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -374,6 +448,13 @@ fun TiledHomeScreen(
                 askPhone.launch(arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_CALL_LOG, Manifest.permission.READ_CONTACTS))
             } else {
                 FluxCore.setCallAlerts(!state.callAlerts)
+            }
+        },
+        SyncItem(Ic.chat, "Text messages", state.shareSms && state.smsAccess) {
+            if (!state.smsAccess) {
+                askSms.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.SEND_SMS))
+            } else {
+                FluxCore.setShareSms(!state.shareSms)
             }
         },
         SyncItem(Ic.dnd, "Sync Do Not Disturb", state.syncDnd && state.dndAccess) {

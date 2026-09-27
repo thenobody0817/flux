@@ -27,6 +27,12 @@ object Types {
     const val SFTP_REQUEST = "kdeconnect.sftp.request"
     const val TELEPHONY = "kdeconnect.telephony"
 
+    /** The phone sends its texts, and answers the computer's requests for them. */
+    const val SMS_MESSAGES = "kdeconnect.sms.messages"
+    const val SMS_REQUEST = "kdeconnect.sms.request"
+    const val SMS_REQUEST_CONVERSATIONS = "kdeconnect.sms.request_conversations"
+    const val SMS_REQUEST_CONVERSATION = "kdeconnect.sms.request_conversation"
+
     /** Flux extension: this phone opens a listener that the computer connects to. */
     const val FLUX_TUNNEL = "flux.tunnel"
 
@@ -70,6 +76,7 @@ val INCOMING = listOf(
     Types.SFTP, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
     Types.FLUX_THEME,
+    Types.SMS_REQUEST, Types.SMS_REQUEST_CONVERSATIONS, Types.SMS_REQUEST_CONVERSATION,
 )
 
 /** Packet types that the phone sends. */
@@ -78,7 +85,7 @@ val OUTGOING = listOf(
     Types.SHARE_UPDATE, Types.NOTIFICATION, Types.FIND_MY_PHONE, Types.RUN_COMMAND_REQUEST,
     Types.MPRIS_REQUEST, Types.SFTP_REQUEST, Types.TELEPHONY, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
-    Types.FLUX_THEME_REQUEST,
+    Types.FLUX_THEME_REQUEST, Types.SMS_MESSAGES,
 )
 
 /** The body of a kdeconnect.identity packet. */
@@ -141,8 +148,15 @@ data class Identity(
             )
         }
 
-        fun self(deviceId: String, name: String, tcpPort: Int, wakeMacs: List<String> = emptyList()) = Identity(
-            deviceId, cleanName(name), "phone", PROTOCOL_VERSION, INCOMING, OUTGOING, tcpPort, wakeMacs.filter { validMac(it) },
+        /**
+         * The phone's own identity. [sms] is true when the Messages switch is on
+         * and the phone may read and send texts, so the computer shows its
+         * Messages page. Without it, the phone does not advertise the plugin.
+         */
+        fun self(deviceId: String, name: String, tcpPort: Int, wakeMacs: List<String> = emptyList(), sms: Boolean = false) = Identity(
+            deviceId, cleanName(name), "phone", PROTOCOL_VERSION, INCOMING,
+            if (sms) OUTGOING else OUTGOING.filterNot { it == Types.SMS_MESSAGES },
+            tcpPort, wakeMacs.filter { validMac(it) },
         )
     }
 }

@@ -19,6 +19,25 @@ Item {
   property var messages: []
   property bool loading: false
   property string loadedFor: ""
+  // True while the thread stays scrolled to the newest message at the bottom.
+  property bool pinned: true
+  // The right-click Copy menu of a text selection.
+  property var copySource: null
+  property bool copyOpen: false
+  property real copyX: 0
+  property real copyY: 0
+
+  function openCopy(source, x, y) {
+    copySource = source
+    copyX = x
+    copyY = y
+    copyOpen = true
+  }
+
+  function copySelection() {
+    if (copySource) copySource.copy()
+    copyOpen = false
+  }
 
   implicitHeight: 480
 
@@ -39,6 +58,7 @@ Item {
     selected = c
     loading = loadedFor !== dev.id + ":" + c.thread
     var life = root.life
+    root.pinned = true
     view.call("sms.thread", { device: dev.id, thread: c.thread }, function (result) {
       if (!life.alive) return
       root.messages = result.messages || []
@@ -62,6 +82,7 @@ Item {
     })
     var next = messages.slice()
     next.push({ body: text, time: Math.floor(Date.now() / 1000), outgoing: true })
+    pinned = true
     messages = next
     draft.clear()
     Qt.callLater(function () { thread.positionViewAtEnd() })
@@ -207,6 +228,11 @@ Item {
       clip: true
       model: root.messages
       boundsBehavior: Flickable.StopAtBounds
+      // Keep the newest message at the bottom as the thread loads and grows,
+      // until the user scrolls away from it.
+      onCountChanged: Qt.callLater(positionViewAtEnd)
+      onContentHeightChanged: if (root.pinned) positionViewAtEnd()
+      onMovementEnded: root.pinned = atYEnd
       delegate: Item {
         required property var modelData
         width: thread.width
@@ -215,17 +241,44 @@ Item {
           id: bubble
           anchors.right: modelData.outgoing ? parent.right : undefined
           anchors.left: modelData.outgoing ? undefined : parent.left
-          width: Math.min(msg.implicitWidth, thread.width * 0.7 - 26) + 26
-          height: msg.implicitHeight + 18
+          width: Math.min(measure.implicitWidth, thread.width * 0.7 - 26) + 26
+          height: msg.contentHeight + 18
           color: modelData.outgoing ? Theme.accent : Theme.bg3
+          // An invisible copy measures the single-line width, so the bubble
+          // stays at the text width and a long message still wraps.
           Txt {
+            id: measure
+            visible: false
+            text: modelData.body || ""
+          }
+          // The body is selectable, so the user can copy a code or an
+          // address. Ctrl+C copies the selection, and a right click opens
+          // the Copy item.
+          TextEdit {
             id: msg
             x: 13
             y: 9
-            width: Math.min(implicitWidth, thread.width * 0.7 - 26)
+            width: Math.min(measure.implicitWidth, thread.width * 0.7 - 26)
             text: modelData.body || ""
             color: modelData.outgoing ? Theme.bg : Theme.fg
-            wrapMode: Text.Wrap
+            selectionColor: Theme.alpha(modelData.outgoing ? Theme.bg : Theme.accent, 0.4)
+            selectedTextColor: modelData.outgoing ? Theme.bg : Theme.fg
+            readOnly: true
+            selectByMouse: true
+            persistentSelection: true
+            textFormat: TextEdit.PlainText
+            wrapMode: TextEdit.Wrap
+            font.family: Theme.font
+            font.pixelSize: Theme.size
+          }
+          MouseArea {
+            anchors.fill: msg
+            acceptedButtons: Qt.RightButton
+            onClicked: {
+              if (msg.selectedText.length === 0) return
+              var p = mapToItem(root, mouse.x, mouse.y)
+              root.openCopy(msg, p.x, p.y)
+            }
           }
         }
       }
@@ -260,6 +313,40 @@ Item {
         active: root.online && !!root.selected
         onClicked: root.send()
       }
+    }
+  }
+
+  // A click anywhere closes the Copy menu.
+  MouseArea {
+    anchors.fill: parent
+    visible: root.copyOpen
+    z: 90
+    onClicked: root.copyOpen = false
+  }
+
+  // The Copy item of the selection menu. It stays inside the page, so it
+  // works in both hosts.
+  Rectangle {
+    id: copyMenu
+    visible: root.copyOpen
+    x: Math.max(4, Math.min(root.copyX, parent.width - width - 4))
+    y: Math.max(4, Math.min(root.copyY, parent.height - height - 4))
+    width: copyLabel.implicitWidth + 24
+    height: copyLabel.implicitHeight + 16
+    radius: 6
+    color: Theme.bg
+    border.width: 1
+    border.color: Theme.bg3
+    z: 100
+    Txt {
+      id: copyLabel
+      anchors.centerIn: parent
+      text: "Copy"
+    }
+    MouseArea {
+      anchors.fill: parent
+      cursorShape: Qt.PointingHandCursor
+      onClicked: root.copySelection()
     }
   }
 }

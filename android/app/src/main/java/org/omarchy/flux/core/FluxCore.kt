@@ -85,7 +85,8 @@ object FluxCore {
     /** The TLS context of the running backend, for payload transfers. */
     val tls: org.omarchy.flux.net.Tls? get() = backend?.tls
 
-    fun identity(tcpPort: Int): Identity = Identity.self(local.deviceId, deviceName, tcpPort, localWakeMacs)
+    fun identity(tcpPort: Int): Identity =
+        Identity.self(local.deviceId, deviceName, tcpPort, localWakeMacs, sms = settings.shareSms && Android.hasSms(app))
 
     // ---------------------------------------------------------------- network
 
@@ -199,6 +200,8 @@ object FluxCore {
                 notificationAccess = Android.hasNotificationAccess(app),
                 callAlerts = settings.callAlerts,
                 callAccess = Android.hasPhoneState(app),
+                shareSms = settings.shareSms,
+                smsAccess = Android.hasSms(app),
                 ringingFrom = ringingFrom,
                 browse = browse,
                 listeningUdp = backend?.listeningUdp ?: true,
@@ -300,6 +303,13 @@ object FluxCore {
     fun setCallAlerts(on: Boolean) {
         settings.callAlerts = on
         publish()
+    }
+
+    /** Turns the sharing of this phone's texts on or off, and re-announces the capability. */
+    fun setShareSms(on: Boolean) {
+        settings.shareSms = on
+        publish()
+        rediscover()
     }
 
     fun setSyncDnd(on: Boolean) {

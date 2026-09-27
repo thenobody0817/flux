@@ -24,6 +24,9 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Do Not Disturb sync reads and sets the interruption filter. -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- The Messages page on the computer reads the phone's texts and sends replies. -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <!-- New screenshots and photos go to the computer when their switch is on. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
@@ -31,6 +34,8 @@
     <!-- The phone as microphone, and the screen mirror. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- The desktop shell asks for one position, for the weather compass. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Approve sudo and polkit with a fingerprint. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
@@ -105,6 +110,16 @@
             android:turnScreenOn="true"
             android:taskAffinity="org.omarchy.flux.eyec" />
 
+        <!-- The embedded desktop shell, full screen and without the app's own chrome. -->
+        <activity
+            android:name=".shell.ShellActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:taskAffinity="org.omarchy.flux.shell"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|fontScale|locale|layoutDirection|keyboard|keyboardHidden|navigation|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".service.FluxService"
             android:exported="false"
@@ -124,6 +139,17 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Only the files the shell staged for sharing, and only while a share is running. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="org.omarchy.flux.shellfiles"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shell_file_paths" />
+        </provider>
 
         <receiver
             android:name=".service.BootReceiver"

@@ -69,8 +69,43 @@ kotlin {
     }
 }
 
+// The embedded desktop shell (org.omarchy.flux.shell) loads a bundled copy of the
+// OmarchyRemote web shell when the host is unreachable. prepareShellAssets regenerates
+// that copy from an OmarchyRemote checkout; point OMARCHY_REMOTE_DIR at that checkout,
+// or pass -PomarchyRemoteDir=..., to refresh it. Without a checkout the copy already in
+// src/main/assets/Web is built as it is, so a build never depends on the host machine.
+val bundledShell = file("src/main/assets/Web")
+val omarchyRemoteDir = providers.gradleProperty("omarchyRemoteDir").orNull
+    ?: System.getenv("OMARCHY_REMOTE_DIR")
+    ?: file("${System.getProperty("user.home")}/src/omarchy-remote").path
+
+// prepare-native.py resolves its inputs from the script's own repository, so the working
+// directory stays the OmarchyRemote checkout and only --output points back here.
+val prepareShellAssets =
+    if (File(omarchyRemoteDir, "scripts/prepare-native.py").isFile) {
+        tasks.register<Exec>("prepareShellAssets") {
+            group = "shell"
+            description = "Copies the OmarchyRemote web shell into src/main/assets/Web."
+            workingDir = file(omarchyRemoteDir)
+            commandLine("python3", "scripts/prepare-native.py", "--output", bundledShell.absolutePath)
+            inputs.dir(File(omarchyRemoteDir, "public")).withPathSensitivity(PathSensitivity.RELATIVE)
+            inputs.file(File(omarchyRemoteDir, "ios/WebOverrides/native.css"))
+            outputs.dir(bundledShell)
+        }
+    } else {
+        logger.lifecycle("No OmarchyRemote checkout at $omarchyRemoteDir: keeping the bundled shell assets as they are.")
+        null
+    }
+
+tasks.named("preBuild").configure {
+    if (prepareShellAssets != null) dependsOn(prepareShellAssets)
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // WebViewCompat.addDocumentStartJavaScript and addWebMessageListener back the
+    // shell's device bridge: the web shell has no other way to reach the phone.
+    implementation(libs.androidx.webkit)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)

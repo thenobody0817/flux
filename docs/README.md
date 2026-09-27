@@ -22,6 +22,7 @@ Flux connects an Omarchy desktop to Flux for Android on the same local network.
 | [Omarchy integration](omarchy.md) | Shell plugin, bar item, window host, theme, and desktop integration |
 | [Fingerprint approval](approvals.md) | Enrollment, PAM services, timeout, and removal |
 | [eyec](eyec.md) | Answer eyec prompts, chat, and run actions from the phone |
+| [Desktop shell](shell.md) | Carry an Omarchy Remote computer on the phone: terminals, apps, and browser tabs |
 | [Troubleshooting](troubleshooting.md) | Service, discovery, plugin, media, Android, and build failures |
 
 ## Develop and automate

@@ -179,6 +179,11 @@ object Android {
         androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
 
+    /** True when the phone lets Flux read its text messages. */
+    fun hasSms(context: Context): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_SMS) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
     /** A file in the public Downloads folder that is still being written. */
     class Download(val uri: Uri, val stream: OutputStream)
 

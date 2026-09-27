@@ -85,6 +85,9 @@ data class UiState(
     /** Call alerts are on. [callAccess] is true when the phone allows them. */
     val callAlerts: Boolean = false,
     val callAccess: Boolean = false,
+    /** Texts are shared. [smsAccess] is true when the phone allows Flux to read them. */
+    val shareSms: Boolean = false,
+    val smsAccess: Boolean = false,
     val ringingFrom: String? = null,
     val browse: BrowseState? = null,
     val listeningUdp: Boolean = true,

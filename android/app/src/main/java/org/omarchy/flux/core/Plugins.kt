@@ -80,6 +80,8 @@ object Plugins {
             Types.FLUX_APPROVE -> Approvals.onPacket(core, d, p)
             Types.FLUX_EYEC -> Eyec.onPacket(core, d, p)
             Types.FLUX_THEME -> ThemeSync.onPacket(core, p)
+            Types.SMS_REQUEST, Types.SMS_REQUEST_CONVERSATIONS, Types.SMS_REQUEST_CONVERSATION ->
+                if (core.settings.shareSms) Sms.onPacket(core, d, p) else Unit
         }
     }
 
