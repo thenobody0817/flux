@@ -71,6 +71,10 @@ const (
 	// TypeFluxThemeRequest asks the desktop to list the themes or to apply
 	// one. The phone sends it.
 	TypeFluxThemeRequest = "flux.theme.request"
+	// TypeFluxHerdr carries the herdr agents of the computer to the phone,
+	// and the requests of the phone for the agent list and recent output.
+	// Both sides send it. docs/herdr.md describes it.
+	TypeFluxHerdr = "flux.herdr"
 )
 
 // Incoming lists the packet types that Flux accepts. The phone enables a
@@ -81,7 +85,7 @@ var Incoming = []string{
 	TypeRunCommandRequest, TypeMpris, TypeMprisRequest, TypeSftp,
 	TypeSftpRequest, TypeSmsMessages, TypeConnectivity, TypeTelephony,
 	TypeFluxTunnel, TypeFluxWebcam, TypeFluxDnd, TypeFluxMic, TypeFluxScreen,
-	TypeFluxApprove, TypeFluxEyec, TypeFluxThemeRequest, MicSpeakerCap,
+	TypeFluxApprove, TypeFluxEyec, TypeFluxThemeRequest, TypeFluxHerdr, MicSpeakerCap,
 }
 
 // Outgoing lists the packet types that Flux sends.
@@ -91,7 +95,7 @@ var Outgoing = []string{
 	TypeFindMyPhone, TypeRunCommand, TypeMpris, TypeMprisRequest,
 	TypeSftpRequest, TypeSmsRequest, TypeSmsConversations,
 	TypeSmsConversation, TypeSftp, TypeFluxWebcam, TypeFluxDnd,
-	TypeFluxMic, TypeFluxScreen, TypeFluxApprove, TypeFluxEyec, TypeFluxTheme, MicSpeakerCap,
+	TypeFluxMic, TypeFluxScreen, TypeFluxApprove, TypeFluxEyec, TypeFluxTheme, TypeFluxHerdr, MicSpeakerCap,
 }
 
 // Identity is the body of a kdeconnect.identity packet.

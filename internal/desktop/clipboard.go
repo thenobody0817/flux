@@ -144,5 +144,21 @@ func (c *Clipboard) Set(text string) error {
 	return nil
 }
 
+// SetImage puts an image on the clipboard with the MIME type mime, such as
+// image/png. The next text copy syncs, also when it equals the last text.
+func (c *Clipboard) SetImage(data []byte, mime string) error {
+	c.mu.Lock()
+	c.lastSeen = ""
+	c.mu.Unlock()
+	// As in Set, the output goes to /dev/null so that Run does not wait
+	// for the process that serves the clipboard.
+	cmd := exec.Command("wl-copy", "--type", mime)
+	cmd.Stdin = bytes.NewReader(data)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("wl-copy: %w", err)
+	}
+	return nil
+}
+
 // isText reports whether b looks like text and not binary data.
 func isText(b []byte) bool { return bytes.IndexByte(b, 0) < 0 }

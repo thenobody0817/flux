@@ -44,6 +44,25 @@ Names match without case.
 Use the ID when devices have the same name.
 Compare the key before the user accepts a pair request.
 
+## Extra addresses and Tailscale
+
+```sh
+tailscale status
+flux addresses
+flux --device "Pixel 8" addresses add pixel-8
+flux --device "Pixel 8" addresses remove pixel-8
+```
+
+An extra address is a host name or an IP address without a port, for example the Tailscale name of the phone.
+`fluxd` dials the last address first, then the extra addresses. It dials 2 seconds after a link drops and every 30 seconds while the paired device is offline.
+Each device in `flux status --json` has an `addresses` list.
+`flux doctor` reports an extra host name that does not resolve.
+The addresses are in `~/.local/share/flux/devices.json`. Change them with the CLI, not by hand, while `fluxd` runs.
+
+Flux cannot discover or pair a device through Tailscale.
+Pair on the local network first.
+Read `docs/tailscale.md` for the limits and the troubleshooting steps.
+
 ## Notifications, media, and commands
 
 ```sh
@@ -109,6 +128,8 @@ Key settings:
 | `share_home` | Share the desktop home folder read-only |
 | `pause_media_on_call` | Pause desktop media during a phone call |
 | `sync_dnd` | Sync Do Not Disturb |
+| `herdr` | Show the herdr agents of the computer on the phone |
+| `herdr_control` | Let the phone send keys and prompts to herdr agents. Off by default |
 | `gui` | Select the enabled plugin, otherwise the Qt app |
 | `approve_timeout` | Wait 20 seconds for fingerprint approval |
 
@@ -119,6 +140,26 @@ Without `XDG_RUNTIME_DIR`, Flux uses a user-specific directory in the system tem
 
 Do not delete the identity or trust store to diagnose a routine connection failure.
 Their removal changes pairing identity.
+
+## herdr agents
+
+`fluxd` sends the herdr agents of the computer to Flux for Android.
+Read `docs/herdr.md` for the phone screens, the notifications, and the wire format.
+
+```sh
+flux doctor
+flux status --json
+herdr agent list
+journalctl --user -u fluxd --no-pager | grep herdr
+```
+
+The `herdr` field of the state has `enabled`, `running`, `control`, and `agents`.
+`fluxd` and herdr must run as the same user.
+`HERDR_SOCKET_PATH` selects a herdr session other than the default.
+
+Replies from the phone need `herdr_control = true`.
+A reply can make an agent run commands on the computer.
+Do not turn on `herdr_control` unless the user asks for replies from the phone.
 
 ## Fingerprint approval
 
@@ -146,6 +187,7 @@ Do not change `sshd` or `login` PAM services.
 4. Check that Flux runs on the phone.
 5. Check that the network allows communication between clients.
 6. Run `flux discover` and inspect the state again.
+7. For a phone away from the local network, check `flux addresses`, `tailscale ping HOST`, and the `connect to` lines in the `fluxd` log.
 
 If the plugin fails, test the Qt host with `FLUX_GUI=app flux open`.
 If that succeeds, inspect the plugin install and shell logs.

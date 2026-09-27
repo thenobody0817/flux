@@ -1,5 +1,6 @@
 package org.omarchy.flux.ui
 
+import android.app.Activity
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.LocalIndication
@@ -9,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,20 +20,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -44,59 +50,121 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.omarchy.flux.core.FluxColors
+import org.omarchy.flux.core.FluxCore
+import org.omarchy.flux.core.ThemeMode
 import org.omarchy.flux.core.ThemeSync
 import org.omarchy.flux.core.TokyoNight
 
 /**
  * The Tiled design: Tokyo Night colors, 12 dp tiles with 8 dp gaps, and an
- * active-window gradient border like Hyprland on Omarchy.
- *
- * The colors follow the active Omarchy theme of the computer. [apply] takes
- * the palette that the phone received; [TiledTheme] calls it. The defaults
- * are Tokyo Night, so the app looks right before the first theme arrives.
+ * active-window gradient border like Hyprland on Omarchy. [Tn] gives the
+ * colors of the current theme.
  */
-object Tn {
-    var bg by mutableStateOf(Color(TokyoNight.bg)); private set
-    var tile by mutableStateOf(Color(TokyoNight.tile)); private set
-    var tileHi by mutableStateOf(Color(TokyoNight.tileHi)); private set
-    var offTile by mutableStateOf(Color(TokyoNight.offTile)); private set
-    var line by mutableStateOf(Color(TokyoNight.line)); private set
-    var lineHi by mutableStateOf(Color(TokyoNight.lineHi)); private set
-    var text by mutableStateOf(Color(TokyoNight.text)); private set
-    var sub by mutableStateOf(Color(TokyoNight.sub)); private set
-    var dim by mutableStateOf(Color(TokyoNight.dim)); private set
-    var blue by mutableStateOf(Color(TokyoNight.blue)); private set
-    var cyan by mutableStateOf(Color(TokyoNight.cyan)); private set
-    var green by mutableStateOf(Color(TokyoNight.green)); private set
-    var magenta by mutableStateOf(Color(TokyoNight.magenta)); private set
-    var orange by mutableStateOf(Color(TokyoNight.orange)); private set
-    var red by mutableStateOf(Color(TokyoNight.red)); private set
-    var yellow by mutableStateOf(Color(TokyoNight.yellow)); private set
+@Immutable
+class TiledColors(
+    val dark: Boolean,
+    val bg: Color,
+    val tile: Color,
+    val tileHi: Color,
+    val offTile: Color,
+    val line: Color,
+    val lineHi: Color,
+    val text: Color,
+    val sub: Color,
+    val dim: Color,
+    /** The text and icons on an accent fill. */
+    val onAccent: Color,
+    val blue: Color,
+    val cyan: Color,
+    val green: Color,
+    val magenta: Color,
+    val orange: Color,
+    val red: Color,
+    val yellow: Color,
+)
 
-    fun apply(c: FluxColors) {
-        bg = Color(c.bg)
-        tile = Color(c.tile)
-        tileHi = Color(c.tileHi)
-        offTile = Color(c.offTile)
-        line = Color(c.line)
-        lineHi = Color(c.lineHi)
-        text = Color(c.text)
-        sub = Color(c.sub)
-        dim = Color(c.dim)
-        blue = Color(c.blue)
-        cyan = Color(c.cyan)
-        green = Color(c.green)
-        magenta = Color(c.magenta)
-        orange = Color(c.orange)
-        red = Color(c.red)
-        yellow = Color(c.yellow)
-    }
-}
+/** Tokyo Night. */
+private val TiledDark = TiledColors(
+    dark = true,
+    bg = Color(0xFF16161E),
+    tile = Color(0xFF1F2335),
+    tileHi = Color(0xFF24283B),
+    offTile = Color(0xFF1A1B26),
+    line = Color(0xFF292E42),
+    lineHi = Color(0xFF3B4261),
+    text = Color(0xFFC0CAF5),
+    sub = Color(0xFFA9B1D6),
+    dim = Color(0xFF565F89),
+    onAccent = Color(0xFF16161E),
+    blue = Color(0xFF7AA2F7),
+    cyan = Color(0xFF7DCFFF),
+    green = Color(0xFF9ECE6A),
+    magenta = Color(0xFFBB9AF7),
+    orange = Color(0xFFFF9E64),
+    red = Color(0xFFF7768E),
+    yellow = Color(0xFFE0AF68),
+)
+
+/**
+ * Tokyo Night Day. The tiles are lighter than the background, as in the
+ * dark theme. [TiledColors.tileHi] and [TiledColors.offTile] are steps
+ * between the Tokyo Night Day colors.
+ */
+private val TiledLight = TiledColors(
+    dark = false,
+    bg = Color(0xFFD0D5E3),
+    tile = Color(0xFFE1E2E7),
+    tileHi = Color(0xFFE9EAEF),
+    offTile = Color(0xFFD8DBE5),
+    line = Color(0xFFC4C8DA),
+    lineHi = Color(0xFFA8AECB),
+    text = Color(0xFF3760BF),
+    sub = Color(0xFF6172B0),
+    dim = Color(0xFF848CB5),
+    onAccent = Color(0xFFE1E2E7),
+    blue = Color(0xFF2E7DE9),
+    cyan = Color(0xFF007197),
+    green = Color(0xFF587539),
+    magenta = Color(0xFF9854F1),
+    orange = Color(0xFFB15C00),
+    red = Color(0xFFF52A65),
+    yellow = Color(0xFF8C6C3E),
+)
+
+private val LocalTiledColors = staticCompositionLocalOf { TiledDark }
+
+/** Builds the Tiled colors from the palette of the computer's Omarchy theme. */
+private fun FluxColors.toTiled(dark: Boolean) = TiledColors(
+    dark = dark,
+    bg = Color(bg),
+    tile = Color(tile),
+    tileHi = Color(tileHi),
+    offTile = Color(offTile),
+    line = Color(line),
+    lineHi = Color(lineHi),
+    text = Color(text),
+    sub = Color(sub),
+    dim = Color(dim),
+    onAccent = Color(if (dark) bg else tile),
+    blue = Color(blue),
+    cyan = Color(cyan),
+    green = Color(green),
+    magenta = Color(magenta),
+    orange = Color(orange),
+    red = Color(red),
+    yellow = Color(yellow),
+)
+
+/** The Tiled colors of the current theme. */
+val Tn: TiledColors
+    @Composable @ReadOnlyComposable get() = LocalTiledColors.current
 
 val TileShape = RoundedCornerShape(12.dp)
 val TileGap = 8.dp
@@ -109,40 +177,68 @@ val TiledGutter = 10.dp
 /** The alpha of a tile whose computer is not reachable. */
 private const val DimAlpha = 0.55f
 
+@Composable
+@ReadOnlyComposable
 fun activeBorder(from: Color = Tn.blue, to: Color = Tn.cyan) = BorderStroke(2.dp, Brush.linearGradient(listOf(from, to)))
 
 /**
- * The theme of the app: a fixed dark Tokyo Night scheme. Material parts,
+ * The theme of the app: Tokyo Night in the dark theme and Tokyo Night Day in
+ * the light theme. [ThemeMode.System] follows the phone. Material parts,
  * such as menus, sliders, dialogs, and the camera and mic screens, take the
  * same colors as the tiles.
  */
 @Composable
 fun TiledTheme(content: @Composable () -> Unit) {
-    // Follow the active Omarchy theme of the computer. Tn holds Compose
-    // state, so the tiles and this scheme rebuild when the palette changes.
-    val colors by ThemeSync.colors.collectAsStateWithLifecycle()
-    LaunchedEffect(colors) { Tn.apply(colors) }
-    val scheme = darkColorScheme(
-        primary = Tn.blue, onPrimary = Tn.bg,
-        primaryContainer = Tn.tileHi, onPrimaryContainer = Tn.text,
-        secondary = Tn.cyan, onSecondary = Tn.bg,
-        secondaryContainer = Tn.line, onSecondaryContainer = Tn.text,
-        tertiary = Tn.magenta, onTertiary = Tn.bg,
-        tertiaryContainer = Tn.line, onTertiaryContainer = Tn.text,
-        background = Tn.bg, onBackground = Tn.text,
-        surface = Tn.bg, onSurface = Tn.text,
-        surfaceVariant = Tn.tile, onSurfaceVariant = Tn.sub,
-        surfaceContainerLowest = Tn.bg, surfaceContainerLow = Tn.offTile,
-        surfaceContainer = Tn.tile, surfaceContainerHigh = Tn.tileHi, surfaceContainerHighest = Tn.line,
-        inverseSurface = Tn.tileHi, inverseOnSurface = Tn.text, inversePrimary = Tn.blue,
-        outline = Tn.dim, outlineVariant = Tn.line,
-        error = Tn.red, onError = Tn.bg,
-        errorContainer = Tn.red, onErrorContainer = Tn.bg,
-    )
-    MaterialTheme(colorScheme = scheme) {
-        CompositionLocalProvider(LocalContentColor provides Tn.text, content = content)
+    val mode = FluxCore.state.collectAsStateWithLifecycle().value.theme
+    val synced by ThemeSync.colors.collectAsStateWithLifecycle()
+    val dark = when (mode) {
+        ThemeMode.System -> isSystemInDarkTheme()
+        ThemeMode.Light -> false
+        ThemeMode.Dark -> true
+    }
+    // Follow the active Omarchy theme of the computer when it sent one.
+    // Otherwise use Tokyo Night, or Tokyo Night Day in the light theme.
+    val colors = remember(synced, dark) {
+        if (synced == TokyoNight) (if (dark) TiledDark else TiledLight) else synced.toTiled(dark)
+    }
+    val scheme = remember(colors) { colors.scheme() }
+    // The system bars are transparent, so their icons take the color of the theme.
+    val view = LocalView.current
+    DisposableEffect(view, dark) {
+        (view.context as? Activity)?.window?.let { window ->
+            WindowCompat.getInsetsController(window, view).run {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+        }
+        onDispose { }
+    }
+    CompositionLocalProvider(LocalTiledColors provides colors) {
+        MaterialTheme(colorScheme = scheme) {
+            CompositionLocalProvider(LocalContentColor provides colors.text, content = content)
+        }
     }
 }
+
+/** The Material 3 color scheme of the tiles. */
+private fun TiledColors.scheme(): ColorScheme = (if (dark) darkColorScheme() else lightColorScheme()).copy(
+    primary = blue, onPrimary = onAccent,
+    primaryContainer = tileHi, onPrimaryContainer = text,
+    secondary = cyan, onSecondary = onAccent,
+    secondaryContainer = line, onSecondaryContainer = text,
+    tertiary = magenta, onTertiary = onAccent,
+    tertiaryContainer = line, onTertiaryContainer = text,
+    background = bg, onBackground = text,
+    surface = bg, onSurface = text,
+    surfaceVariant = tile, onSurfaceVariant = sub,
+    surfaceTint = blue,
+    surfaceContainerLowest = bg, surfaceContainerLow = offTile,
+    surfaceContainer = tile, surfaceContainerHigh = tileHi, surfaceContainerHighest = line,
+    inverseSurface = tileHi, inverseOnSurface = text, inversePrimary = blue,
+    outline = dim, outlineVariant = line,
+    error = red, onError = onAccent,
+    errorContainer = red, onErrorContainer = onAccent,
+)
 
 /**
  * A tile. The border takes [accent] while pressed. A long press runs
@@ -199,7 +295,7 @@ fun LineTile(
     }
 }
 
-/** A small tile: the icon over the label, centered. */
+/** A small tile: the icon over the label, centered. A [badge] above 0 shows as a red count on the icon. */
 @Composable
 fun MiniTile(
     @DrawableRes icon: Int,
@@ -209,13 +305,24 @@ fun MiniTile(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     container: Color = Tn.tile,
+    badge: Int = 0,
 ) {
     Tile(
         modifier, onClick, accent = accent, container = container, enabled = enabled,
         padding = PaddingValues(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Sym(icon, tint = accent, size = 20.dp)
+        Box {
+            Sym(icon, tint = accent, size = 20.dp)
+            if (badge > 0) {
+                T(
+                    if (badge > 9) "9+" else "$badge",
+                    Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-6).dp)
+                        .clip(RoundedCornerShape(7.dp)).background(Tn.red).padding(horizontal = 4.dp),
+                    size = 10, color = Tn.onAccent, weight = FontWeight.Bold, family = Mono,
+                )
+            }
+        }
         T(label, size = 11, weight = FontWeight.SemiBold, maxLines = 1)
     }
 }

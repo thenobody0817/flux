@@ -44,10 +44,13 @@ class MainActivity : ComponentActivity() {
     /** Debug builds only: the page that the `flux.debug.page` extra asks for. */
     val debugPage = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
+    /** The device ID and the pane of the agent that a notification opens. */
+    val openAgent = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, String>?>(null)
+
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // The theme is always dark, so the system bars use light icons.
+        // The system bars are transparent. TiledTheme sets the color of their icons.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -61,12 +64,33 @@ class MainActivity : ComponentActivity() {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         debugShowWhenLocked(intent)
-        setContent { TiledTheme { FluxRoot(this) } }
+        takeOpenAgent(intent)
+        // The start animation plays when the launcher starts the app, not after a recreation or a notification tap.
+        val splash = savedInstanceState == null && intent?.hasCategory(android.content.Intent.CATEGORY_LAUNCHER) == true
+        setContent { TiledTheme { FluxRoot(this, splash) } }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         debugShowWhenLocked(intent)
+        takeOpenAgent(intent)
+    }
+
+    /** Reads the agent that a notification opens. The extras go, so that a new activity does not open it again. */
+    private fun takeOpenAgent(intent: android.content.Intent?) {
+        val device = intent?.getStringExtra(EXTRA_DEVICE) ?: return
+        val pane = intent.getStringExtra(EXTRA_PANE) ?: return
+        intent.removeExtra(EXTRA_DEVICE)
+        intent.removeExtra(EXTRA_PANE)
+        openAgent.value = device to pane
+    }
+
+    companion object {
+        /** The device ID of the agent that a notification opens. */
+        const val EXTRA_DEVICE = "flux.open.device"
+
+        /** The herdr pane of the agent that a notification opens. */
+        const val EXTRA_PANE = "flux.open.pane"
     }
 
     /**
@@ -92,6 +116,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** The page prefix of the screen of one agent. The herdr pane ID follows it. */
+private const val AGENT_PAGE = "agent:"
+
 /** One entry of the screen stack. [page] is empty for the device home screen. */
 private data class Route(val deviceId: String? = null, val page: String = "")
 
@@ -99,8 +126,9 @@ private data class Route(val deviceId: String? = null, val page: String = "")
 private data class Outgoing(val deviceId: String, val timestamp: Long, val key: String, val sent: Boolean = false)
 
 @Composable
-fun FluxRoot(activity: MainActivity) {
+fun FluxRoot(activity: MainActivity, splash: Boolean = false) {
     val state by FluxCore.state.collectAsStateWithLifecycle()
+    var splashing by remember { mutableStateOf(splash) }
     var stack by remember { mutableStateOf(listOf(Route())) }
     val snacks = remember { SnackbarHostState() }
     var outgoing by remember { mutableStateOf<Outgoing?>(null) }
@@ -168,6 +196,15 @@ fun FluxRoot(activity: MainActivity) {
         activity.debugPage.value = null
     }
 
+    // A tap on an agent notification opens the screen of the agent.
+    val openAgent by activity.openAgent.collectAsStateWithLifecycle()
+    LaunchedEffect(openAgent, state.devices.size) {
+        val (id, pane) = openAgent ?: return@LaunchedEffect
+        if (state.devices.none { it.id == id && it.paired }) return@LaunchedEffect
+        stack = listOf(Route(), Route(id), Route(id, "agents"), Route(id, "$AGENT_PAGE$pane"))
+        activity.openAgent.value = null
+    }
+
     fun push(r: Route) { stack = stack + r }
     fun pop() { if (stack.size > 1) stack = stack.dropLast(1) }
     BackHandler(enabled = stack.size > 1) { pop() }
@@ -190,6 +227,8 @@ fun FluxRoot(activity: MainActivity) {
                 route.page == "commands" -> TiledCommandsScreen(device, ::pop)
                 route.page == "eyec" -> EyecScreen(device, ::pop)
                 route.page == "theme" -> ThemeScreen(device, ::pop)
+                route.page == "agents" -> TiledAgentsScreen(device, ::pop) { pane -> push(Route(device.id, "$AGENT_PAGE$pane")) }
+                route.page.startsWith(AGENT_PAGE) -> key(route.page) { TiledAgentScreen(device, route.page.removePrefix(AGENT_PAGE), ::pop) }
                 route.page == "browse" -> BrowseScreen(device, state.browse, ::pop)
                 // Debug builds open a mode with "camera:<mode>".
                 route.page.startsWith("camera") -> key(route.page) {
@@ -242,5 +281,6 @@ fun FluxRoot(activity: MainActivity) {
             )
         }
         state.ringingFrom?.let { from -> RingOverlay(from) { Ringer.stop(activity) } }
+        if (splashing) FluxSplash { splashing = false }
     }
 }

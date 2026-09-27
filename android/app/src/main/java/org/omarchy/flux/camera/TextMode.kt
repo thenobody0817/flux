@@ -12,7 +12,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
-import android.graphics.Matrix
 import android.net.Uri
 import android.provider.Settings
 import android.util.Size
@@ -294,14 +293,5 @@ private fun ResultControls(d: DeviceUi, text: String, onText: (String) -> Unit, 
             if (text.isNotBlank()) FilledPill("Send to ${d.name}", onSend, Ic.send)
         }
     }
-}
-
-/** Returns the captured frame as an upright bitmap. */
-private fun upright(image: ImageProxy): Bitmap {
-    val bitmap = image.toBitmap()
-    val degrees = image.imageInfo.rotationDegrees
-    if (degrees == 0) return bitmap
-    val m = Matrix().apply { postRotate(degrees.toFloat()) }
-    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
 }
 

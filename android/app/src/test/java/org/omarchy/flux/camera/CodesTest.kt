@@ -68,5 +68,6 @@ class CodesTest {
         val t = LocalDateTime.of(2026, 9, 25, 10, 15, 0)
         assertEquals("IMG_20260925_101500.jpg", CaptureNames.photo(t))
         assertEquals("scan-20260925-101500.pdf", CaptureNames.document(t))
+        assertEquals("signature-20260925-101500.png", CaptureNames.signature(t))
     }
 }

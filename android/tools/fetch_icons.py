@@ -39,7 +39,8 @@ cameraswitch flash_on flash_off flash_auto rotate_right stop+fill
 fiber_manual_record+fill photo_library do_not_disturb_on screenshot
 mic+fill mic_off screen_share stop_screen_share
 
-fingerprint power_settings_new
+fingerprint power_settings_new signature smart_toy
+light_mode dark_mode contrast
 """.split()
 
 BASE = "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/android"

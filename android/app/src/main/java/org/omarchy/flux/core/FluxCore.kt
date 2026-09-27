@@ -69,6 +69,8 @@ object FluxCore {
         settings = Settings(app)
         ThemeSync.start(this)
         localWakeMacs = Android.wakeMacs()
+        // The system keeps the night mode of the app, but a restore or a data clear can change the setting.
+        Android.setNightMode(app, settings.theme)
         for (t in trust.all()) {
             val identity = Identity(t.id, t.name, t.type, 8, if (t.isFlux) listOf(Types.FLUX_TUNNEL) else emptyList(), emptyList())
             val d = Device(this, identity)
@@ -202,10 +204,13 @@ object FluxCore {
                 callAccess = Android.hasPhoneState(app),
                 shareSms = settings.shareSms,
                 smsAccess = Android.hasSms(app),
+                agentInputAlerts = settings.agentInputAlerts,
+                agentDoneAlerts = settings.agentDoneAlerts,
                 ringingFrom = ringingFrom,
                 browse = browse,
                 listeningUdp = backend?.listeningUdp ?: true,
                 enabled = settings.enabled,
+                theme = settings.theme,
             )
         }
         _state.value = snapshot
@@ -295,6 +300,12 @@ object FluxCore {
         }
     }
 
+    fun setTheme(mode: ThemeMode) {
+        settings.theme = mode
+        Android.setNightMode(app, mode)
+        publish()
+    }
+
     fun setSyncClipboard(on: Boolean) {
         settings.syncClipboard = on
         publish()
@@ -314,6 +325,16 @@ object FluxCore {
 
     fun setSyncDnd(on: Boolean) {
         settings.syncDnd = on
+        publish()
+    }
+
+    fun setAgentInputAlerts(on: Boolean) {
+        settings.agentInputAlerts = on
+        publish()
+    }
+
+    fun setAgentDoneAlerts(on: Boolean) {
+        settings.agentDoneAlerts = on
         publish()
     }
 

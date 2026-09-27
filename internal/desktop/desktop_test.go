@@ -132,6 +132,29 @@ func TestFindLoopback(t *testing.T) {
 	}
 }
 
+// TestClipboardSetImage checks that SetImage gives wl-copy the MIME type
+// and the exact bytes of the image.
+func TestClipboardSetImage(t *testing.T) {
+	dir := t.TempDir()
+	fake := "#!/bin/sh\nprintf '%s\\n' \"$@\" >'" + dir + "/args'\ncat >'" + dir + "/stdin'\n"
+	if err := os.WriteFile(filepath.Join(dir, "wl-copy"), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	data := []byte("\x89PNG\r\n\x1a\n\x00\x01\x02")
+	if err := NewClipboard().SetImage(data, "image/png"); err != nil {
+		t.Fatal(err)
+	}
+	args, _ := os.ReadFile(filepath.Join(dir, "args"))
+	if string(args) != "--type\nimage/png\n" {
+		t.Errorf("args %q", args)
+	}
+	stdin, _ := os.ReadFile(filepath.Join(dir, "stdin"))
+	if string(stdin) != string(data) {
+		t.Errorf("stdin %q", stdin)
+	}
+}
+
 // TestClipboardSetReturnsWhileWlCopyServes uses a fake wl-copy that, like
 // the real one, leaves a background process that keeps its stdout and
 // stderr open. Set must return at once and not wait for that process.

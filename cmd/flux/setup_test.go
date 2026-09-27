@@ -40,17 +40,18 @@ func TestCopyPluginLayout(t *testing.T) {
 	}
 }
 
-// TestCopyPluginInstalledLayout copies the plugin the way an installed
-// package lays it out: the plugin root already contains Flux/ and no
-// separate views dir exists. The Flux/ tree must survive.
-func TestCopyPluginInstalledLayout(t *testing.T) {
-	src := filepath.Join(t.TempDir(), "omarchy-plugin")
-	for _, f := range []string{"manifest.json", "Panel.qml", "Flux/FluxView.qml", "Flux/components/qmldir", "tools/helper"} {
+// TestCopyPluginSystemLayout copies the plugin from the system install
+// layout, where Flux/ already holds the real shared views. The copy must
+// keep them, or the bar widget and panel fail to load while summon still
+// answers "ok".
+func TestCopyPluginSystemLayout(t *testing.T) {
+	src := t.TempDir()
+	for _, f := range []string{"manifest.json", "Panel.qml", "BarWidget.qml", "Service.qml", "Backend.qml", "Flux/qmldir", "Flux/FluxView.qml", "Flux/components/FluxMark.qml"} {
 		p := filepath.Join(src, f)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		if err := os.WriteFile(p, []byte("// test"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -58,12 +59,9 @@ func TestCopyPluginInstalledLayout(t *testing.T) {
 	if err := copyPlugin(src, "", dest); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"manifest.json", "Panel.qml", "Flux/FluxView.qml", "Flux/components/qmldir"} {
+	for _, want := range []string{"manifest.json", "Panel.qml", "BarWidget.qml", "Flux/qmldir", "Flux/FluxView.qml", "Flux/components/FluxMark.qml"} {
 		if _, err := os.Stat(filepath.Join(dest, want)); err != nil {
 			t.Errorf("missing %s", want)
 		}
-	}
-	if _, err := os.Stat(filepath.Join(dest, "tools")); !os.IsNotExist(err) {
-		t.Errorf("tools should be skipped, stat err = %v", err)
 	}
 }

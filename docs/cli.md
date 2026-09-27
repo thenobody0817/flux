@@ -58,7 +58,7 @@ flux unpair "Pixel 8"
 Compare the verification key on both devices before you accept.
 See [phone pairing](features.md#pair-a-phone).
 
-## Reach a device away from home
+## Reach a device away from the local network
 
 Flux finds devices on the local network. To reach a phone on a mobile
 network, give the paired device an address that works off the LAN, for
@@ -69,11 +69,26 @@ flux remote moto-edge-40-pro.tailb898c2.ts.net --device "Moto Edge 40 Pro"
 flux remote --device "Moto Edge 40 Pro"   # clear it
 ```
 
-The address may include a port; without one it uses 1716. fluxd dials the
-local address first and falls back to the remote address after a moment.
+The `remote` address may include a port; without one it uses 1716. fluxd
+dials the local address first and falls back to the remote address after a
+moment.
+
+For several addresses, use `addresses`. An extra address is a host name or
+an IP address without a port, for example the Tailscale name of the phone.
+While the device is offline, `fluxd` dials the extra addresses after the
+last address. The device must be paired.
+
+```sh
+flux addresses
+flux --device "Pixel 8" addresses add pixel-8
+flux --device "Pixel 8" addresses add 100.101.102.103
+flux --device "Pixel 8" addresses remove 100.101.102.103
+```
+
 A name that resolves to any address works, so the phone needs no extra
 configuration beyond running Tailscale and Flux.
-See [configuration](configuration.md#remote-devices).
+See [Connect through Tailscale](tailscale.md) and
+[configuration](configuration.md#remote-devices).
 
 ## Share and communicate
 

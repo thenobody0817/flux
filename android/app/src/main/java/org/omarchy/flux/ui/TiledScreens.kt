@@ -42,6 +42,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -73,6 +74,7 @@ import org.omarchy.flux.core.FluxCore
 import org.omarchy.flux.core.Plugins
 import org.omarchy.flux.core.Settings as FluxSettings
 import org.omarchy.flux.core.Share
+import org.omarchy.flux.core.ThemeMode
 import org.omarchy.flux.core.ThemeSync
 import org.omarchy.flux.core.UiState
 import org.omarchy.flux.core.Wake
@@ -125,7 +127,7 @@ fun TiledDevicesScreen(
                     Sym(Ic.refresh, size = 16.dp, tint = Tn.sub)
                     T(if (refreshing) "Searching…" else "Refresh", size = 12, color = Tn.sub)
                 }
-                AppMenu()
+                AppMenu(state.theme)
             }
             Tile(Modifier.fillMaxWidth(), border = activeBorder(), padding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -178,13 +180,26 @@ fun TiledDevicesScreen(
     }
 }
 
-/** The menu of the device list. */
+/** The menu of the device list: the theme of the app, and Flux off. */
 @Composable
-private fun AppMenu() {
+private fun AppMenu(theme: ThemeMode) {
     var open by remember { mutableStateOf(false) }
     Box {
         SquareButton(Ic.more, "More options", { open = true }, size = 32.dp)
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            TileLabel("Theme", Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+            for ((mode, label, icon) in ThemeItems) {
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    leadingIcon = { Sym(icon) },
+                    trailingIcon = { if (mode == theme) Sym(Ic.check, "Selected", tint = Tn.blue) },
+                    onClick = {
+                        open = false
+                        FluxCore.setTheme(mode)
+                    },
+                )
+            }
+            HorizontalDivider(Modifier.padding(vertical = 4.dp), color = Tn.line)
             DropdownMenuItem(
                 text = { Text("Turn off Flux") },
                 leadingIcon = { Sym(Ic.power) },
@@ -257,6 +272,12 @@ private fun ShellHostDialog(current: String, onDismiss: (String?) -> Unit) {
         dismissButton = { TextButton(onClick = { onDismiss(null) }) { Text("Cancel") } },
     )
 }
+
+private val ThemeItems = listOf(
+    Triple(ThemeMode.System, "System", Ic.systemTheme),
+    Triple(ThemeMode.Light, "Light", Ic.lightMode),
+    Triple(ThemeMode.Dark, "Dark", Ic.darkMode),
+)
 
 @Composable
 private fun PairedTile(d: DeviceUi, modifier: Modifier, onOpen: () -> Unit, onUnpair: () -> Unit) {
@@ -343,8 +364,8 @@ fun TiledPairSheet(name: String, key: String, waiting: Boolean, onCancel: () -> 
                         contentAlignment = Alignment.Center,
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (waiting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Tn.bg)
-                            T(if (waiting) "Waiting" else "Pair", size = 14, color = Tn.bg, weight = FontWeight.SemiBold)
+                            if (waiting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Tn.onAccent)
+                            T(if (waiting) "Waiting" else "Pair", size = 14, color = Tn.onAccent, weight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -426,8 +447,8 @@ fun TiledHomeScreen(
             }
         }
     }
-    val sync = listOf(
-        SyncItem(Ic.notifications, "Share notifications", state.shareNotifications && state.notificationAccess) {
+    val sync = buildList {
+        add(SyncItem(Ic.notifications, "Share notifications", state.shareNotifications && state.notificationAccess) {
             if (!state.notificationAccess) {
                 FluxCore.setShareNotifications(true)
                 val intent = if (Build.VERSION.SDK_INT >= 30) {
@@ -441,34 +462,39 @@ fun TiledHomeScreen(
             } else {
                 FluxCore.setShareNotifications(!state.shareNotifications)
             }
-        },
-        SyncItem(Ic.paste, "Sync clipboard", state.syncClipboard) { FluxCore.setSyncClipboard(!state.syncClipboard) },
-        SyncItem(Ic.call, "Call alerts", state.callAlerts && state.callAccess) {
+        })
+        add(SyncItem(Ic.paste, "Sync clipboard", state.syncClipboard) { FluxCore.setSyncClipboard(!state.syncClipboard) })
+        add(SyncItem(Ic.call, "Call alerts", state.callAlerts && state.callAccess) {
             if (!state.callAccess) {
                 askPhone.launch(arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_CALL_LOG, Manifest.permission.READ_CONTACTS))
             } else {
                 FluxCore.setCallAlerts(!state.callAlerts)
             }
-        },
-        SyncItem(Ic.chat, "Text messages", state.shareSms && state.smsAccess) {
+        })
+        add(SyncItem(Ic.chat, "Text messages", state.shareSms && state.smsAccess) {
             if (!state.smsAccess) {
                 askSms.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.SEND_SMS))
             } else {
                 FluxCore.setShareSms(!state.shareSms)
             }
-        },
-        SyncItem(Ic.dnd, "Sync Do Not Disturb", state.syncDnd && state.dndAccess) {
+        })
+        add(SyncItem(Ic.dnd, "Sync Do Not Disturb", state.syncDnd && state.dndAccess) {
             if (!state.dndAccess) {
                 FluxCore.setSyncDnd(true)
                 runCatching { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
             } else {
                 FluxCore.setSyncDnd(!state.syncDnd)
             }
-        },
-        SyncItem(Ic.power, "Wake when away", d.wakeEnabled) { FluxCore.setWakeEnabled(d.id, !d.wakeEnabled) },
-        SyncItem(Ic.screenshot, "Send new screenshots", state.sendScreenshots && state.mediaAccess) { captureToggle(CaptureKind.Screenshot, state.sendScreenshots) },
-        SyncItem(Ic.gallery, "Send new photos", state.sendPhotos && state.mediaAccess) { captureToggle(CaptureKind.Photo, state.sendPhotos) },
-    )
+        })
+        add(SyncItem(Ic.power, "Wake when away", d.wakeEnabled) { FluxCore.setWakeEnabled(d.id, !d.wakeEnabled) })
+        add(SyncItem(Ic.screenshot, "Send new screenshots", state.sendScreenshots && state.mediaAccess) { captureToggle(CaptureKind.Screenshot, state.sendScreenshots) })
+        add(SyncItem(Ic.gallery, "Send new photos", state.sendPhotos && state.mediaAccess) { captureToggle(CaptureKind.Photo, state.sendPhotos) })
+        // The agent alerts apply to every computer. They show only on a computer that sends herdr agents.
+        if (d.herdrSupported) {
+            add(SyncItem(Ic.notificationsActive, "Agent needs input", state.agentInputAlerts) { FluxCore.setAgentInputAlerts(!state.agentInputAlerts) })
+            add(SyncItem(Ic.checkCircle, "Agent finished", state.agentDoneAlerts) { FluxCore.setAgentDoneAlerts(!state.agentDoneAlerts) })
+        }
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = TiledGutter)) {
         TiledTopBar("${typeLabel(d)} · ${d.ip}", onBack) { DeviceMenu(d.name, onUnpair) }
@@ -504,6 +530,12 @@ fun TiledHomeScreen(
                     }, Modifier.weight(1f).fillMaxHeight(), on)
                 }
                 MiniTile(Ic.terminal, "Commands", Tn.yellow, guarded { onNavigate("commands") }, Modifier.weight(1f).fillMaxHeight(), on)
+                if (d.herdrSupported) {
+                    MiniTile(
+                        Ic.agent, "Agents", Tn.magenta, guarded { onNavigate("agents") }, Modifier.weight(1f).fillMaxHeight(), on,
+                        badge = if (on) d.herdr?.blocked ?: 0 else 0,
+                    )
+                }
             }
             LineTile(Ic.folderOpen, "Browse PC", Tn.magenta, guarded { onNavigate("browse") }, Modifier.fillMaxWidth().height(TileUnit), on, trailing = "~/ read-only")
             LineTile(Ic.text, "Ask eyec", Tn.cyan, guarded { onNavigate("eyec") }, Modifier.fillMaxWidth().height(TileUnit), on, trailing = "screen chat")
@@ -594,7 +626,7 @@ private fun MediaTile(d: DeviceUi, modifier: Modifier, onOpen: () -> Unit) {
                     Modifier.size(34.dp).clip(CircleShape).background(Tn.green)
                         .clickable { Plugins.mediaAction(FluxCore, d.id, "PlayPause") },
                     contentAlignment = Alignment.Center,
-                ) { Sym(if (playing) Ic.pause else Ic.play, if (playing) "Pause" else "Play", tint = Tn.bg, size = 22.dp) }
+                ) { Sym(if (playing) Ic.pause else Ic.play, if (playing) "Pause" else "Play", tint = Tn.onAccent, size = 22.dp) }
             }
         }
     }
@@ -663,7 +695,7 @@ fun TiledMediaScreen(d: DeviceUi, onBack: () -> Unit) {
                             name,
                             Modifier.clip(RoundedCornerShape(8.dp)).background(if (sel) Tn.green else Tn.tile)
                                 .clickable { Plugins.selectPlayer(FluxCore, d.id, name) }.padding(horizontal = 10.dp, vertical = 6.dp),
-                            size = 12, color = if (sel) Tn.bg else Tn.sub, family = Mono, weight = FontWeight.Medium,
+                            size = 12, color = if (sel) Tn.onAccent else Tn.sub, family = Mono, weight = FontWeight.Medium,
                         )
                     }
                 }
@@ -718,7 +750,7 @@ fun TiledMediaScreen(d: DeviceUi, onBack: () -> Unit) {
                     container = Tn.green, border = null, padding = PaddingValues(0.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                 ) {
-                    Sym(if (p.playing) Ic.pause else Ic.play, if (p.playing) "Pause" else "Play", tint = Tn.bg, size = 34.dp)
+                    Sym(if (p.playing) Ic.pause else Ic.play, if (p.playing) "Pause" else "Play", tint = Tn.onAccent, size = 34.dp)
                 }
                 ControlTile(Ic.next, "Next", Modifier.weight(1f)) { Plugins.mediaAction(FluxCore, d.id, "Next") }
             }

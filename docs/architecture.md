@@ -5,10 +5,11 @@
 `fluxd` owns device state and network operations.
 The CLI and both desktop hosts communicate with it through a local Unix socket.
 The native Android app owns the phone services and its side of the connection.
+The native macOS app takes the same role on a Mac.
 
 ```text
 flux CLI ─────────────┐
-Qt app ──────────────┼── Unix socket ── fluxd ── TLS and tunnels ── Android
+Qt app ──────────────┼── Unix socket ── fluxd ── TLS and tunnels ── Android or macOS
 Omarchy shell plugin ┘
 ```
 
@@ -24,22 +25,25 @@ Omarchy shell plugin ┘
 | IPC | `internal/ipc/` | JSON-line Unix socket server and client |
 | Configuration | `internal/config/` | TOML settings, data paths, and trust store |
 | Desktop services | `internal/desktop/` | Clipboard, notifications, media, audio, and camera integration |
+| herdr client | `internal/herdr/` | API socket client that reads the [herdr agents](herdr.md) for the phone |
 | Approval | `internal/approve/`, `cmd/flux-approve/` | Root trust anchor, PAM setup, and signature verification |
 | Shared views | `gui/qml/` | Qt Quick screens and controls for both desktop hosts |
 | Qt host | `gui/app/` | Native C++ host, backend adapter, and theme watcher |
 | Shell host | `gui/omarchy/` | Omarchy service, bar widget, panel, and backend adapter |
 | Android | `android/` | Kotlin app, phone services, Compose screens, and protocol peer |
+| macOS | `macos/` | Swift package `FluxKit` with the protocol peer and plugins, and the SwiftUI app |
 | Distribution | `dist/` | Arch recipe, service, udev rule, install scripts, and desktop files |
 
 ## Network direction
 
 Flux uses KDE Connect protocol version 8 with Flux extensions.
-Flux for Android is the supported phone app.
+Flux for Android and Flux for macOS are the supported device apps.
 
 | Operation | Route |
 | --- | --- |
 | Discover the phone | mDNS through Avahi |
 | Connect to the phone | Desktop opens the connection |
+| Connect to the phone outside the local network | Desktop dials an [extra address](tailscale.md), for example through Tailscale |
 | Receive files, icons, or album art | Desktop connects to the phone's payload port |
 | Send files to the phone | Phone listens for a `flux.tunnel`, then desktop connects |
 | Browse the desktop from the phone | SSH inside a `flux.tunnel` |

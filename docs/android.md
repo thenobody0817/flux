@@ -105,8 +105,9 @@ ANDROID_SERIAL=emulator-5554 FLUX_DEMO=1 tools/shot.sh home /tmp/home.png
 
 The pages are:
 
-- `devices`, `home`, `media`, `commands`, `browse`, `mic`, and `camera`.
-- `camera:<mode>` for a camera mode: `text`, `qr`, `photo`, `document`, or `webcam`.
+- `devices`, `home`, `media`, `commands`, `browse`, `mic`, `agents`, and `camera`.
+- `agent:<pane>` for the output of one herdr agent. The sample blocked agent is `agent:w2:p1`.
+- `camera:<mode>` for a camera mode: `text`, `qr`, `photo`, `document`, `signature`, or `webcam`.
 - `ring`, `pair`, and `unpair` for the ring overlay, the pairing sheet, and the unpair dialog.
 - `<page>@offline` for the page of a paired computer that is not reachable.
 - `empty` for the app with no computers.

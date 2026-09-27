@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"flux/internal/config"
+	"flux/internal/herdr"
 	"golang.org/x/sys/unix"
 )
 
@@ -52,6 +56,30 @@ func doctor() {
 	check(active("avahi-daemon"), "avahi-daemon runs, so fluxd can find phones with mDNS",
 		"avahi-daemon is not running, so fluxd cannot find phones. Run: sudo systemctl enable --now avahi-daemon")
 
+	// Extra addresses reach a paired device outside the local network, for
+	// example through Tailscale. A host name must resolve to be of use.
+	if err == nil {
+		tailscale := active("tailscaled")
+		for _, d := range s.Devices {
+			if !d.Paired {
+				continue
+			}
+			if len(d.Addresses) == 0 && tailscale {
+				fmt.Printf("- Tailscale runs. To reach %s away from this network, run: flux --device %q addresses add HOST\n", d.Name, d.Name)
+			}
+			for _, a := range d.Addresses {
+				if net.ParseIP(a) != nil {
+					continue
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				_, rerr := net.DefaultResolver.LookupHost(ctx, a)
+				cancel()
+				check(rerr == nil, fmt.Sprintf("%s resolves, so fluxd can reach %s through it", a, d.Name),
+					fmt.Sprintf("%s does not resolve, so fluxd cannot reach %s through it. For a Tailscale name, check: tailscale status", a, d.Name))
+			}
+		}
+	}
+
 	// The phone as webcam needs ffmpeg and access to the v4l2loopback
 	// control device. Both are optional.
 	_, ffErr := exec.LookPath("ffmpeg")
@@ -74,6 +102,19 @@ func doctor() {
 	_, ffplayErr := exec.LookPath("ffplay")
 	check(mpvErr == nil || ffplayErr == nil, "mpv or ffplay is installed, so the phone screen can show here",
 		"The screen mirror needs mpv or ffplay. Install mpv with: sudo pacman -S mpv")
+
+	// herdr is optional. When it runs, the phone shows its agents.
+	if _, err := exec.LookPath("herdr"); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		pong, perr := herdr.Ping(ctx, herdr.SocketPath())
+		cancel()
+		if perr != nil {
+			fmt.Println("- herdr does not run. Start herdr to show its agents on the phone")
+		} else {
+			check(pong.Protocol >= herdr.MinProtocol, fmt.Sprintf("herdr %s runs, so the phone can show its agents", pong.Version),
+				fmt.Sprintf("herdr %s uses API protocol %d, and Flux needs %d or newer. Run: herdr update", pong.Version, pong.Protocol, herdr.MinProtocol))
+		}
+	}
 
 	for _, bin := range []string{"wl-copy", "wl-paste", "pw-play", "xdg-open"} {
 		_, lerr := exec.LookPath(bin)

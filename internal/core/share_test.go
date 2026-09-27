@@ -16,11 +16,43 @@ func TestDestDir(t *testing.T) {
 		destScan:       "/tmp/scan",
 		destPhoto:      "/tmp/pics",
 		destScreenshot: "/tmp/pics/screenshots",
+		destSignature:  "/tmp/pics/signatures",
 	}
 	for kind, want := range cases {
 		if got := destDir(cfg, kind); got != want {
 			t.Errorf("kind %d: got %s, want %s", kind, got, want)
 		}
+	}
+}
+
+func TestCopyImage(t *testing.T) {
+	dir := t.TempDir()
+	clip := &memClipboard{}
+	d := &Daemon{clip: clip}
+
+	png := filepath.Join(dir, "signature.png")
+	data := append([]byte("\x89PNG\r\n\x1a\n"), 1, 2, 3)
+	if err := os.WriteFile(png, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.copyImage(png); err != nil {
+		t.Fatal(err)
+	}
+	if clip.mime != "image/png" || string(clip.image) != string(data) {
+		t.Errorf("clipboard has %q as %s", clip.image, clip.mime)
+	}
+
+	// A file that is not a PNG stays off the clipboard.
+	other := filepath.Join(dir, "signature.txt")
+	if err := os.WriteFile(other, []byte("not an image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	clip.image, clip.mime = nil, ""
+	if err := d.copyImage(other); err == nil {
+		t.Error("copied a file that is not a PNG")
+	}
+	if clip.image != nil {
+		t.Errorf("clipboard has %q", clip.image)
 	}
 }
 

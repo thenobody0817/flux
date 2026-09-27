@@ -6,11 +6,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.graphics.Matrix
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
+import androidx.camera.core.ImageProxy
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -162,3 +164,12 @@ internal fun decodeScaled(context: Context, uri: Uri): Bitmap =
         if (scale < 1f) decoder.setTargetSize((w * scale).toInt(), (h * scale).toInt())
         decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
     }
+
+/** Returns the captured frame as an upright bitmap. */
+internal fun upright(image: ImageProxy): Bitmap {
+    val bitmap = image.toBitmap()
+    val degrees = image.imageInfo.rotationDegrees
+    if (degrees == 0) return bitmap
+    val m = Matrix().apply { postRotate(degrees.toFloat()) }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
+}

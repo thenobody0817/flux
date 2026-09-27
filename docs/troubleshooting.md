@@ -35,7 +35,7 @@ See [isolated development](development.md#isolated-daemon).
 
 ## The phone does not appear
 
-1. Open Flux for Android.
+1. Open Flux for Android or Flux for macOS.
 2. Check that both devices use the same local network.
 3. Check Avahi:
 
@@ -53,6 +53,27 @@ See [isolated development](development.md#isolated-daemon).
 Guest Wi-Fi and client isolation can block devices on the same access point.
 Flux uses outbound desktop connections and mDNS, so a new inbound desktop firewall rule is not the default fix.
 Keep the existing identity and trust store while you diagnose connectivity.
+
+On a Mac, check that Flux has access to the local network.
+To read the Mac logs, run:
+
+```sh
+log stream --predicate 'subsystem == "org.omarchy.flux"'
+```
+
+## The phone does not connect away from home
+
+Flux reaches a phone outside the local network only through an extra address, for example its Tailscale name.
+
+```sh
+flux addresses
+flux doctor
+tailscale ping pixel-8
+journalctl --user -u fluxd -n 50 --no-pager | grep "connect to"
+```
+
+If `flux addresses` shows `none` for the phone, add its Tailscale name.
+See [Connect through Tailscale](tailscale.md#troubleshoot) for the other checks.
 
 ## The window or bar item is missing
 
@@ -86,6 +107,17 @@ The webcam needs `ffmpeg`, `v4l2loopback-dkms`, and headers for the active kerne
 The microphone needs PipeWire and phone microphone permission.
 The screen mirror needs `mpv` or `ffplay` and the Android capture prompt.
 See [camera and streams](camera.md) for setup commands.
+
+## herdr agents do not show
+
+```sh
+herdr status
+flux doctor
+journalctl --user -u fluxd --no-pager | grep herdr
+```
+
+`fluxd` and herdr must run as the same user.
+See [herdr agents](herdr.md#troubleshoot) for the socket path and the phone states.
 
 ## Android build or install fails
 

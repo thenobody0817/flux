@@ -1,7 +1,9 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -130,10 +132,13 @@ func (d *Daemon) handleShare(dev *Device, l *lan.Link, p *proto.Packet) {
 		// Scan marks text or a PDF that the phone camera scanned. Photo marks
 		// a photo from the phone camera. Screenshot marks a new screenshot
 		// that the phone sends by itself, together with Photo, so that an
-		// older fluxd saves it as a photo. All come from Flux for Android.
+		// older fluxd saves it as a photo. Signature marks a PNG of a
+		// signature that the phone cut out of a photo. All come from Flux
+		// for Android.
 		Scan       bool `json:"scan"`
 		Photo      bool `json:"photo"`
 		Screenshot bool `json:"screenshot"`
+		Signature  bool `json:"signature"`
 	}
 	if p.Decode(&body) != nil {
 		return
@@ -156,6 +161,8 @@ func (d *Daemon) handleShare(dev *Device, l *lan.Link, p *proto.Packet) {
 	case p.HasPayload():
 		kind := destDownload
 		switch {
+		case body.Signature:
+			kind = destSignature
 		case body.Scan:
 			kind = destScan
 		case body.Screenshot:
@@ -175,7 +182,14 @@ const (
 	destScan                       // the scan folder, for scanned PDFs
 	destPhoto                      // the photo folder
 	destScreenshot                 // the screenshots folder in the photo folder
+	destSignature                  // the signatures folder in the photo folder
 )
+
+// maxClipboardImage is the largest signature that fluxd puts on the clipboard.
+const maxClipboardImage = 16 << 20
+
+// pngMagic starts every PNG file.
+var pngMagic = []byte("\x89PNG\r\n\x1a\n")
 
 // destDir returns the folder for a received file of the kind.
 func destDir(cfg *config.Config, kind fileDest) string {
@@ -186,6 +200,8 @@ func destDir(cfg *config.Config, kind fileDest) string {
 		return cfg.PhotoPath()
 	case destScreenshot:
 		return filepath.Join(cfg.PhotoPath(), "screenshots")
+	case destSignature:
+		return filepath.Join(cfg.PhotoPath(), "signatures")
 	}
 	return cfg.DownloadPath()
 }
@@ -239,6 +255,7 @@ func (d *Daemon) receiveFile(dev *Device, l *lan.Link, p *proto.Packet, name str
 		return
 	}
 	title := "Received " + t.Name
+	body := "Saved as " + t.Path
 	switch kind {
 	case destScan:
 		title = "Scanned document from " + dev.Name
@@ -246,14 +263,43 @@ func (d *Daemon) receiveFile(dev *Device, l *lan.Link, p *proto.Packet, name str
 		title = "Photo from " + dev.Name
 	case destScreenshot:
 		title = "Screenshot from " + dev.Name
+	case destSignature:
+		title = "Signature from " + dev.Name
+		if err := d.copyImage(t.Path); err != nil {
+			d.logf("copy signature %s: %v", t.Path, err)
+		} else {
+			body = "Copied to the clipboard. Saved as " + t.Path
+		}
 	}
 	d.notify(desktop.Notification{
-		AppName: "Flux", Title: title, Body: "Saved as " + t.Path,
+		AppName: "Flux", Title: title, Body: body,
 		Actions: []desktop.Action{{Key: "open:" + t.Path, Label: "Open"}, {Key: "reveal:" + t.Path, Label: "Show in folder"}},
 	})
 	if open {
 		_ = desktop.Open(t.Path)
 	}
+}
+
+// copyImage puts the PNG file at path on the clipboard, so that the user
+// can paste it at once. The file must be a PNG of at most
+// maxClipboardImage bytes.
+func (d *Daemon) copyImage(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxClipboardImage+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > maxClipboardImage {
+		return fmt.Errorf("the image is larger than %d MiB", maxClipboardImage>>20)
+	}
+	if !bytes.HasPrefix(data, pngMagic) {
+		return errors.New("the file is not a PNG image")
+	}
+	return d.clip.SetImage(data, "image/png")
 }
 
 // saveScan writes text that the phone camera read into a new file in the

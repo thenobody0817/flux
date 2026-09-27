@@ -23,6 +23,11 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("enabled", v).commit()
         }
 
+    /** The color theme of the app. */
+    var theme: ThemeMode
+        get() = ThemeMode.fromKey(prefs.getString("theme", null))
+        set(v) = prefs.edit().putString("theme", v.key).apply()
+
     /** Sends the calls of this phone to the computers. It needs the phone permission. */
     var callAlerts: Boolean
         get() = prefs.getBoolean("callAlerts", false)
@@ -37,6 +42,16 @@ class Settings(context: Context) {
     var syncDnd: Boolean
         get() = prefs.getBoolean("syncDnd", true)
         set(v) = prefs.edit().putBoolean("syncDnd", v).apply()
+
+    /** Notifies when a herdr agent on a computer needs input. */
+    var agentInputAlerts: Boolean
+        get() = prefs.getBoolean("agentInputAlerts", true)
+        set(v) = prefs.edit().putBoolean("agentInputAlerts", v).apply()
+
+    /** Notifies when a herdr agent on a computer finishes its work. */
+    var agentDoneAlerts: Boolean
+        get() = prefs.getBoolean("agentDoneAlerts", true)
+        set(v) = prefs.edit().putBoolean("agentDoneAlerts", v).apply()
 
     /** Sends each new screenshot to the computers. */
     var sendScreenshots: Boolean

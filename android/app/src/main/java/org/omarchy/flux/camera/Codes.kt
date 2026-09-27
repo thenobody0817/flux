@@ -121,10 +121,14 @@ object Codes {
 object CaptureNames {
     private val photo = DateTimeFormatter.ofPattern("'IMG_'yyyyMMdd'_'HHmmss'.jpg'")
     private val document = DateTimeFormatter.ofPattern("'scan-'yyyyMMdd'-'HHmmss'.pdf'")
+    private val signature = DateTimeFormatter.ofPattern("'signature-'yyyyMMdd'-'HHmmss'.png'")
 
     /** Returns a photo name such as IMG_20260925_101500.jpg. */
     fun photo(time: LocalDateTime = LocalDateTime.now()): String = photo.format(time)
 
     /** Returns a document name such as scan-20260925-101500.pdf. */
     fun document(time: LocalDateTime = LocalDateTime.now()): String = document.format(time)
+
+    /** Returns a signature name such as signature-20260925-101500.png. */
+    fun signature(time: LocalDateTime = LocalDateTime.now()): String = signature.format(time)
 }

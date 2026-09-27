@@ -50,6 +50,9 @@ object Ic {
     val download = R.drawable.ic_download
     val sync = R.drawable.ic_sync
     val power = R.drawable.ic_power_settings_new
+    val lightMode = R.drawable.ic_light_mode
+    val darkMode = R.drawable.ic_dark_mode
+    val systemTheme = R.drawable.ic_contrast
 
     val phone = R.drawable.ic_smartphone
     val laptop = R.drawable.ic_computer
@@ -108,8 +111,10 @@ object Ic {
     val mic = R.drawable.ic_mic
     val micFill = R.drawable.ic_mic_fill
     val micOff = R.drawable.ic_mic_off
+    val signature = R.drawable.ic_signature
     val screenShare = R.drawable.ic_screen_share
     val stopScreenShare = R.drawable.ic_stop_screen_share
+    val agent = R.drawable.ic_smart_toy
 }
 
 /** An icon from [Ic]. It takes the content color unless [tint] is set. */

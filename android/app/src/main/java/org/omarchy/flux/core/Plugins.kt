@@ -25,6 +25,7 @@ object Plugins {
 
     fun onConnected(core: FluxCore, d: Device) {
         sendBattery(core, d)
+        HerdrSync.onConnected(d)
         // New images that no computer took yet go out now.
         CaptureWatch.poke()
         if (core.foreground && core.settings.syncClipboard) {
@@ -82,6 +83,7 @@ object Plugins {
             Types.FLUX_THEME -> ThemeSync.onPacket(core, p)
             Types.SMS_REQUEST, Types.SMS_REQUEST_CONVERSATIONS, Types.SMS_REQUEST_CONVERSATION ->
                 if (core.settings.shareSms) Sms.onPacket(core, d, p) else Unit
+            Types.FLUX_HERDR -> HerdrSync.onPacket(core, d, p)
         }
     }
 

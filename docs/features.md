@@ -2,6 +2,9 @@
 
 [Documentation index](README.md)
 
+This page describes Flux for Android.
+For the Mac app, see [Flux for macOS](macos.md#features).
+
 ## Pair a phone
 
 1. Install [Flux for Android](android.md).
@@ -23,6 +26,7 @@ flux status
 
 Flux uses TLS with pinned device certificates after pairing.
 The desktop discovers phones through mDNS and opens the connections itself.
+To use the phone away from the local network, see [Connect through Tailscale](tailscale.md).
 
 ## Files, clipboard, and links
 
@@ -167,3 +171,17 @@ An image that no computer received waits for a computer to connect.
 The desktop notification includes an Open action.
 
 See [camera and streams](camera.md) for direct capture and live media.
+
+## herdr agents
+
+When [herdr](https://herdr.dev) runs on the computer, select **Agents** on the phone's device page.
+The phone shows the status and the colored output of each coding agent, and posts a notification when an agent needs input or finishes.
+
+To answer agents from the phone, set:
+
+```toml
+herdr_control = true
+```
+
+Reload with `systemctl --user reload fluxd`.
+See [herdr agents](herdr.md) for the replies, the notifications, and the access rules.

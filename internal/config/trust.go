@@ -27,6 +27,10 @@ type TrustedDevice struct {
 	// It may include a port; without one fluxd uses the default port.
 	// Empty means the device is only reachable on the local network.
 	Remote string `json:"remote,omitempty"`
+	// Addresses are host names or IP addresses that the user added, for
+	// example the Tailscale name of the phone. fluxd tries them after
+	// LastIP while the device is offline.
+	Addresses []string `json:"addresses,omitempty"`
 	// Disabled lists the plugins that the user turned off for this device.
 	Disabled []string `json:"disabledPlugins,omitempty"`
 }

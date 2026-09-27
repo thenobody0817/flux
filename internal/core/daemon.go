@@ -18,6 +18,7 @@ import (
 
 	"flux/internal/config"
 	"flux/internal/desktop"
+	"flux/internal/herdr"
 	"flux/internal/lan"
 	"flux/internal/proto"
 )
@@ -74,6 +75,14 @@ type Daemon struct {
 	approvals approvalBook
 	eyec      eyecBook
 
+	// herdrPath is the API socket of herdr. herdrRunning and herdrAgents
+	// are the last state that the herdr loop read. herdrWake makes the
+	// loop check the setting and read the session again.
+	herdrPath    string
+	herdrRunning bool
+	herdrAgents  []HerdrAgent
+	herdrWake    chan struct{}
+
 	subs   map[int]func(event string, data any)
 	nextID int
 	dirty  chan struct{}
@@ -95,6 +104,7 @@ type clipboard interface {
 	Watch(ctx context.Context, onChange func(text string))
 	Get() (string, error)
 	Set(text string) error
+	SetImage(data []byte, mime string) error
 }
 
 type ringer interface {
@@ -104,8 +114,10 @@ type ringer interface {
 
 // memClipboard is the clipboard of a headless daemon.
 type memClipboard struct {
-	mu   sync.Mutex
-	text string
+	mu    sync.Mutex
+	text  string
+	image []byte
+	mime  string
 }
 
 func (m *memClipboard) Watch(ctx context.Context, _ func(string)) { <-ctx.Done() }
@@ -118,6 +130,12 @@ func (m *memClipboard) Set(text string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.text = text
+	return nil
+}
+func (m *memClipboard) SetImage(data []byte, mime string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.image, m.mime = data, mime
 	return nil
 }
 
@@ -151,6 +169,9 @@ func New(ctx context.Context, logger *log.Logger, opts Options) (*Daemon, error)
 		dirty:   make(chan struct{}, 1),
 		ctx:     ctx,
 		logger:  logger,
+
+		herdrPath: herdr.SocketPath(),
+		herdrWake: make(chan struct{}, 1),
 	}
 	if opts.Headless {
 		d.clip, d.ringer = &memClipboard{}, silentRinger{}
@@ -280,6 +301,7 @@ func (d *Daemon) Run() error {
 	go d.publishLoop(ctx)
 	go d.discoveryLoop(ctx)
 	go d.batteryLoop(ctx)
+	go d.herdrLoop(ctx)
 
 	<-ctx.Done()
 	d.closeLinks()
@@ -413,24 +435,33 @@ func (d *Daemon) onMDNS(peer lan.MDNSPeer) {
 	}
 	dev.IP, dev.Port, dev.LastSeen = peer.IP, peer.Port, time.Now()
 	dev.mdnsSeen = time.Now()
+	// Avahi can answer from its cache with an address that the device left.
+	// Dial the extra addresses too, because this dial blocks other dials to
+	// the device for 1 second.
+	hosts := dev.dialHosts()
 	d.mu.Unlock()
-	d.lan.Dial(d.ctx, peer.IP, peer.Port, proto.Identity{DeviceID: peer.DeviceID, DeviceName: peer.Name, ProtocolVersion: peer.Protocol})
+	d.lan.DialAny(d.ctx, hosts, peer.Port, proto.Identity{DeviceID: peer.DeviceID, DeviceName: peer.Name, ProtocolVersion: peer.Protocol})
 }
+
+// redialDelay is how long fluxd waits after a link drops before it dials
+// the device again. The phone needs a moment to move to another network.
+const redialDelay = 2 * time.Second
 
 // dialKnown connects to each device that is offline and has a known
 // address: paired devices, and devices that mDNS found in the last 10
-// minutes. It also sends a unicast UDP identity from port 1716 to peers
-// on a directly attached network. A device that answers from its port
-// 1716 passes the firewall as a reply. A paired device can also name a
-// remote address, for example a Tailscale MagicDNS name, which fluxd
-// dials directly without the UDP identity.
+// minutes. A paired device can have a remote address and extra addresses,
+// for example a Tailscale name. dialKnown tries the last address first,
+// then the others. It also sends a unicast UDP identity from port 1716 to
+// the last address. A device that answers from its port 1716 passes the
+// firewall as a reply.
 func (d *Daemon) dialKnown() {
 	type target struct {
-		ip   string
-		port int
-		id   proto.Identity
+		ip    string
+		hosts []string
+		port  int
+		id    proto.Identity
 	}
-	var local, remote []target
+	var targets []target
 	var refresh []string
 	d.mu.Lock()
 	m := d.mdns
@@ -440,61 +471,27 @@ func (d *Daemon) dialKnown() {
 		if dev.link == nil && dev.Paired {
 			refresh = append(refresh, dev.ID)
 		}
-		if dev.link != nil {
+		hosts := dev.dialHosts()
+		if dev.link != nil || len(hosts) == 0 {
 			continue
 		}
-		if dev.Paired {
-			id := proto.Identity{DeviceID: dev.ID, DeviceName: dev.Name, ProtocolVersion: dev.Version}
-			switch {
-			case dev.IP != "" && isDirect(dev.IP):
-				local = append(local, target{dev.IP, dev.Port, id})
-			case dev.Remote == "" && dev.IP != "":
-				// A paired device that was last seen on an overlay network,
-				// for example Tailscale.
-				remote = append(remote, target{dev.IP, dev.Port, id})
-			}
-			if host, port := remoteAddr(dev.Remote); host != "" {
-				remote = append(remote, target{host, port, id})
-			}
+		if !dev.Paired && time.Since(dev.mdnsSeen) > 10*time.Minute {
 			continue
 		}
-		if dev.IP == "" || time.Since(dev.mdnsSeen) > 10*time.Minute {
-			continue
-		}
-		if isDirect(dev.IP) {
-			local = append(local, target{dev.IP, dev.Port, proto.Identity{DeviceID: dev.ID, DeviceName: dev.Name, ProtocolVersion: dev.Version}})
-		}
+		targets = append(targets, target{dev.IP, hosts, dev.dialPort(), proto.Identity{DeviceID: dev.ID, DeviceName: dev.Name, ProtocolVersion: dev.Version}})
 	}
 	d.mu.Unlock()
 	for _, id := range refresh {
 		m.Refresh(id)
 	}
-	for _, t := range local {
-		d.lan.Announce(t.ip)
+	for _, t := range targets {
+		if t.ip != "" {
+			d.lan.Announce(t.ip)
+		}
 		if t.port > 0 {
-			d.lan.Dial(d.ctx, t.ip, t.port, t.id)
+			d.lan.DialAny(d.ctx, t.hosts, t.port, t.id)
 		}
 	}
-	if len(remote) == 0 {
-		return
-	}
-	// Give the local network a moment to connect first. A phone at home
-	// answers on the LAN, and the remote address is then not needed. On a
-	// mobile network there is no answer, and the remote dial follows.
-	go func() {
-		timer := time.NewTimer(2 * time.Second)
-		defer timer.Stop()
-		select {
-		case <-d.ctx.Done():
-			return
-		case <-timer.C:
-		}
-		for _, t := range remote {
-			if t.port > 0 {
-				d.lan.Dial(d.ctx, t.ip, t.port, t.id)
-			}
-		}
-	}()
 }
 
 // DefaultPort is the TCP port that Flux listens on unless the user names
@@ -599,7 +596,8 @@ func (d *Daemon) onLink(l *lan.Link) {
 	go func() {
 		err := l.Receive(func(p *proto.Packet) { d.handlePacket(dev, l, p) })
 		d.mu.Lock()
-		if dev.link == l {
+		current := dev.link == l
+		if current {
 			dev.link = nil
 			dev.LastSeen = time.Now()
 			dev.clearPairingLocked()
@@ -608,6 +606,12 @@ func (d *Daemon) onLink(l *lan.Link) {
 		d.mu.Unlock()
 		d.logf("link down: %s: %v", dev.Name, err)
 		d.markDirty()
+		// The device can be back at once on another address, for example
+		// through Tailscale after it left the Wi-Fi. Do not wait for the next
+		// round of dialKnown.
+		if current && d.ctx.Err() == nil {
+			time.AfterFunc(redialDelay, d.dialKnown)
+		}
 	}()
 }
 
@@ -636,6 +640,12 @@ func (d *Daemon) onPairedLink(dev *Device, l *lan.Link) {
 		_ = l.Send(proto.New(proto.TypeMprisRequest, map[string]any{"requestPlayerList": true}))
 	}
 	d.sendThemeTo(dev.ID)
+	if dev.accepts(proto.TypeFluxHerdr) {
+		d.mu.Lock()
+		state := herdrStatePacket(d.herdrViewLocked())
+		d.mu.Unlock()
+		_ = l.Send(state)
+	}
 }
 
 // markDirty schedules a state event for all subscribers.

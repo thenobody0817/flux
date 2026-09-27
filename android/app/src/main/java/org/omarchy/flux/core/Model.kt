@@ -3,6 +3,17 @@ package org.omarchy.flux.core
 /** The pairing state of one device. */
 enum class PairState { None, Requested, Incoming, Paired }
 
+/** The color theme of the app. [System] follows the dark theme setting of the phone. */
+enum class ThemeMode(val key: String) {
+    System("system"),
+    Light("light"),
+    Dark("dark");
+
+    companion object {
+        fun fromKey(key: String?): ThemeMode = entries.firstOrNull { it.key == key } ?: System
+    }
+}
+
 /** The now-playing state of one player on the PC. */
 data class PlayerState(
     val name: String,
@@ -65,6 +76,14 @@ data class DeviceUi(
     val canWake: Boolean = false,
     /** True when the computer accepts flux.theme.request, so the phone can pick a theme. */
     val themeControl: Boolean = false,
+    /** True when the computer can send its herdr agents. */
+    val herdrSupported: Boolean = false,
+    /** The herdr agents, or null before the first agent list. */
+    val herdr: HerdrState? = null,
+    /** The output of the pane on the agent screen. */
+    val herdrOutput: HerdrOutput? = null,
+    /** The last reply from the agent screen. */
+    val herdrReply: HerdrReply? = null,
 )
 
 /** A snapshot of the whole app for the UI. */
@@ -88,9 +107,14 @@ data class UiState(
     /** Texts are shared. [smsAccess] is true when the phone allows Flux to read them. */
     val shareSms: Boolean = false,
     val smsAccess: Boolean = false,
+    /** Notify when a herdr agent on a computer needs input. */
+    val agentInputAlerts: Boolean = true,
+    /** Notify when a herdr agent on a computer finishes. */
+    val agentDoneAlerts: Boolean = true,
     val ringingFrom: String? = null,
     val browse: BrowseState? = null,
     val listeningUdp: Boolean = true,
     /** False while the user has turned Flux off. */
     val enabled: Boolean = true,
+    val theme: ThemeMode = ThemeMode.System,
 )

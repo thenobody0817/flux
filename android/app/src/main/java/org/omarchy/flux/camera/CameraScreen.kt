@@ -28,6 +28,7 @@ enum class CameraMode(val label: String, @DrawableRes val icon: Int, val hint: S
     Qr("QR", Ic.qr, "Read a QR code or barcode"),
     Photo("Photo", Ic.camera, "Take a photo for the computer"),
     Document("Document", Ic.document, "Scan pages to a PDF"),
+    Signature("Signature", Ic.signature, "Sign on paper, paste on the computer"),
     Webcam("Webcam", Ic.videocamOutline, "Use this phone as a webcam");
 
     companion object {
@@ -49,6 +50,7 @@ fun CameraScreen(d: DeviceUi, onBack: () -> Unit, initial: CameraMode = CameraMo
                 CameraMode.Qr -> QrMode(d)
                 CameraMode.Photo -> PhotoMode(d)
                 CameraMode.Document -> DocumentMode(d)
+                CameraMode.Signature -> SignatureMode(d)
                 CameraMode.Webcam -> WebcamPanel(d.id)
             }
         }

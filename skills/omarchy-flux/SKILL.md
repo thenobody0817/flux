@@ -1,11 +1,12 @@
 ---
 name: omarchy-flux
-description: Use, install, diagnose, develop, and release Omarchy Flux. Use this skill for the flux CLI, fluxd, Flux for Android, phone pairing, file or clipboard transfers, phone notifications, webcam or microphone streams, screen mirror, fingerprint approval, the Flux Qt app, the Flux Omarchy plugin, AUR packages, and Flux APK workflows. Scope this skill to Flux tasks, not general Android or Omarchy configuration.
+description: Use, install, diagnose, develop, and release Omarchy Flux. Use this skill for the flux CLI, fluxd, Flux for Android, Flux for macOS, phone and Mac pairing, connections through Tailscale, file or clipboard transfers, phone notifications, webcam or microphone streams, screen mirror, fingerprint approval, herdr agents on the phone, the Flux Qt app, the Flux Omarchy plugin, AUR packages, and Flux APK workflows. Scope this skill to Flux tasks, not general Android or Omarchy configuration.
 ---
 
 # Omarchy Flux
 
-Flux connects an Omarchy desktop to Flux for Android on the same local network.
+Flux connects an Omarchy desktop to Flux for Android or Flux for macOS on the same local network.
+A paired device can also connect through Tailscale with an extra address.
 The desktop includes the `flux` CLI, `fluxd`, a Qt app, and an Omarchy shell plugin.
 
 ## Choose the task
@@ -85,6 +86,18 @@ The desktop opens connections to the phone, including reverse payload tunnels.
 A missing connection does not require a new desktop firewall rule by default.
 Check the daemon, Avahi, Wi-Fi isolation, and phone state first.
 
+Discovery and pairing need the local network.
+To reach a paired phone away from that network, add its Tailscale name as an extra address:
+
+```sh
+tailscale status
+flux --device "Pixel 8" addresses add pixel-8
+flux addresses
+```
+
+Use the device name from `flux status --json` and the host name from `tailscale status`.
+Read `docs/tailscale.md` for the dial order, limits, and checks.
+
 ## Respect the requested operation
 
 SMS, notifications, clipboard transfers, and file transfers affect another device.
@@ -138,15 +151,17 @@ make build
 | Qt host | `gui/app/` |
 | Omarchy shell host | `gui/omarchy/` |
 | Android app | `android/app/src/main/java/org/omarchy/flux/` |
+| macOS app | `macos/Sources/FluxKit/`, `macos/App/` |
 | Fingerprint approval | `internal/approve/`, `cmd/flux-approve/`, Android `core/Approve*` |
 | eyec prompts | `internal/core/eyec.go`, Android `core/Eyec.kt`, `docs/eyec.md` |
+| herdr agents | `internal/herdr/`, `internal/core/herdr.go`, Android `core/Herdr.kt` |
 | Package and system install | `dist/`, `Makefile` |
 
 Keep network state in `fluxd`.
 The CLI and both desktop hosts use its Unix socket.
 Keep shared QML free of Quickshell imports.
 Update both host adapters when you change their shared backend contract.
-Test wire changes on both Go and Kotlin implementations.
+Test wire changes on the Go, Kotlin, and Swift implementations.
 
 Use the existing tests for the component you change.
 Run these checks for a complete build change:
@@ -156,6 +171,9 @@ make build test vet
 cd android
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon
 ```
+
+On a Mac with Xcode and XcodeGen, run `make test-macos macos` from the repository root.
+Use `docs/macos.md` for the macOS app.
 
 Use `docs/development.md` for isolated daemon tests and UI snapshots.
 Do not run a second development daemon against the user's active socket or trust store.

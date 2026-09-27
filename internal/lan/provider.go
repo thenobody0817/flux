@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -231,26 +233,21 @@ func (p *Provider) udpLoop(ctx context.Context) {
 		if p.cfg.OnIdentity != nil {
 			p.cfg.OnIdentity(id, ip)
 		}
-		if p.cfg.HasLink(id.DeviceID) || !p.shouldAttempt(attemptKey(id.DeviceID, ip)) {
+		if p.cfg.HasLink(id.DeviceID) || !p.shouldAttempt(id.DeviceID) {
 			continue
 		}
-		go p.connect(ctx, ip, id)
+		go p.connect(ctx, []string{ip}, id)
 	}
 }
 
-// attemptKey identifies one connection attempt. The address is part of the
-// key, so a device with both a local and a remote address gets one try for
-// each on every round.
-func attemptKey(deviceID, addr string) string { return deviceID + "@" + addr }
-
-// shouldAttempt limits outgoing connections to 1 per address each second.
-func (p *Provider) shouldAttempt(key string) bool {
+// shouldAttempt limits outgoing connections to 1 per device each second.
+func (p *Provider) shouldAttempt(deviceID string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if t, ok := p.attempts[key]; ok && time.Since(t) < time.Second {
+	if t, ok := p.attempts[deviceID]; ok && time.Since(t) < time.Second {
 		return false
 	}
-	p.attempts[key] = time.Now()
+	p.attempts[deviceID] = time.Now()
 	return true
 }
 
@@ -259,41 +256,64 @@ func (p *Provider) shouldAttempt(key string) bool {
 // the connection, so it passes a firewall that blocks incoming traffic.
 // target needs DeviceID and ProtocolVersion.
 func (p *Provider) Dial(ctx context.Context, ip string, port int, target proto.Identity) {
-	if port <= 0 || port > 65535 || !proto.ValidDeviceID(target.DeviceID) {
+	p.DialAny(ctx, []string{ip}, port, target)
+}
+
+// DialAny opens a link to a device that listens on port at one of hosts.
+// Each host is an IP address or a host name, for example the last address
+// of a paired device and its Tailscale name. DialAny prefers the first
+// host. See dialFirst for the order.
+func (p *Provider) DialAny(ctx context.Context, hosts []string, port int, target proto.Identity) {
+	if len(hosts) == 0 || port <= 0 || port > 65535 || !proto.ValidDeviceID(target.DeviceID) {
 		return
 	}
-	if target.DeviceID == p.cfg.Identity().DeviceID || p.cfg.HasLink(target.DeviceID) || !p.shouldAttempt(attemptKey(target.DeviceID, ip)) {
+	if target.DeviceID == p.cfg.Identity().DeviceID || p.cfg.HasLink(target.DeviceID) || !p.shouldAttempt(target.DeviceID) {
 		return
 	}
 	if target.ProtocolVersion == 0 {
 		target.ProtocolVersion = proto.ProtocolVersion
 	}
 	target.TCPPort = port
-	go p.connect(ctx, ip, target)
+	go p.connect(ctx, slices.Clone(hosts), target)
 }
 
-// connect answers a UDP identity. This side opens the TCP connection, sends
-// its identity in plain text, and then acts as the TLS server.
-func (p *Provider) connect(ctx context.Context, ip string, udpID proto.Identity) {
+// connect opens a link to a device that listens at one of hosts. This side
+// opens the TCP connection, sends its identity in plain text, and then acts
+// as the TLS server. When a host accepts the TCP connection but the link
+// fails, connect tries the other hosts. A different device can use the old
+// address of the phone on another network.
+func (p *Provider) connect(ctx context.Context, hosts []string, udpID proto.Identity) {
 	d := net.Dialer{Timeout: 5 * time.Second, KeepAliveConfig: keepAlive}
-	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(ip, fmt.Sprint(udpID.TCPPort)))
-	if err != nil {
-		p.logf("connect to %s (%s): %v", udpID.DeviceName, ip, err)
-		// A failed attempt must not block the next trigger, for example the
-		// UDP broadcast of a device that starts a moment later.
-		p.mu.Lock()
-		delete(p.attempts, attemptKey(udpID.DeviceID, ip))
-		p.mu.Unlock()
-		return
+	for len(hosts) > 0 {
+		conn, i, err := dialFirst(ctx, &d, hosts, udpID.TCPPort)
+		if err != nil {
+			p.logf("connect to %s (%s): %v", udpID.DeviceName, strings.Join(hosts, ", "), err)
+			// A failed attempt must not block the next trigger, for example the
+			// UDP broadcast of a device that starts a moment later.
+			p.mu.Lock()
+			delete(p.attempts, udpID.DeviceID)
+			p.mu.Unlock()
+			return
+		}
+		if p.open(conn, udpID) || p.cfg.HasLink(udpID.DeviceID) {
+			return
+		}
+		hosts = slices.Delete(hosts, i, i+1)
 	}
+}
+
+// open writes the plain identity on a new outgoing connection and runs the
+// TLS handshake as the server. It reports whether the link is up.
+func (p *Provider) open(conn net.Conn, udpID proto.Identity) bool {
+	setUserTimeout(conn)
 	line, _ := p.plainIdentity(udpID).Marshal()
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	if _, err := conn.Write(line); err != nil {
 		conn.Close()
-		return
+		return false
 	}
 	tc := tls.Server(conn, serverConfig(p.cfg.Cert))
-	p.finish(tc, udpID, true)
+	return p.finish(tc, udpID, true)
 }
 
 func (p *Provider) acceptLoop(ctx context.Context) {
@@ -314,6 +334,7 @@ func (p *Provider) acceptLoop(ctx context.Context) {
 // broadcast. The device sends its identity in plain text, and this side
 // acts as the TLS client.
 func (p *Provider) accept(conn net.Conn) {
+	setUserTimeout(conn)
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	r := bufio.NewReaderSize(conn, 4096)
 	line, err := readLine(r, maxIdentitySize)
@@ -347,28 +368,29 @@ func (p *Provider) accept(conn net.Conn) {
 }
 
 // finish runs the TLS handshake, checks the certificate, and exchanges the
-// identity again over TLS for protocol version 8.
-func (p *Provider) finish(tc *tls.Conn, plainID proto.Identity, outgoing bool) {
+// identity again over TLS for protocol version 8. It reports whether it
+// passed a new link to OnLink.
+func (p *Provider) finish(tc *tls.Conn, plainID proto.Identity, outgoing bool) bool {
 	fail := func(format string, args ...any) {
 		p.logf("%s: "+format, append([]any{plainID.DeviceName}, args...)...)
 		tc.Close()
 	}
 	if err := tc.Handshake(); err != nil {
 		fail("TLS handshake: %v", err)
-		return
+		return false
 	}
 	cert, err := peerCert(tc)
 	if err != nil {
 		fail("%v", err)
-		return
+		return false
 	}
 	if cert.Subject.CommonName != plainID.DeviceID {
 		fail("certificate CN %q does not match device ID", cert.Subject.CommonName)
-		return
+		return false
 	}
 	if pinned, ok := p.cfg.Trusted(plainID.DeviceID); ok && !bytes.Equal(pinned.Raw, cert.Raw) {
 		fail("certificate changed since pairing, link refused")
-		return
+		return false
 	}
 	reader := bufio.NewReaderSize(tc, 64<<10)
 	id := plainID
@@ -376,22 +398,22 @@ func (p *Provider) finish(tc *tls.Conn, plainID proto.Identity, outgoing bool) {
 		line, _ := p.secureIdentity().Marshal()
 		if _, err := tc.Write(line); err != nil {
 			fail("send identity: %v", err)
-			return
+			return false
 		}
 		raw, err := readLine(reader, maxIdentitySize)
 		if err != nil {
 			fail("read identity: %v", err)
-			return
+			return false
 		}
 		pkt, err := proto.Unmarshal(raw)
 		if err != nil || pkt.Type != proto.TypeIdentity {
 			fail("expected identity after TLS")
-			return
+			return false
 		}
 		var secure proto.Identity
 		if err := json.Unmarshal(pkt.Body, &secure); err != nil || secure.DeviceID != plainID.DeviceID || secure.ProtocolVersion != plainID.ProtocolVersion {
 			fail("identity after TLS does not match")
-			return
+			return false
 		}
 		id = secure
 	}
@@ -402,4 +424,5 @@ func (p *Provider) finish(tc *tls.Conn, plainID proto.Identity, outgoing bool) {
 	// port that the peer put in its plain identity.
 	link.PeerPort = plainID.TCPPort
 	p.cfg.OnLink(link)
+	return true
 }
