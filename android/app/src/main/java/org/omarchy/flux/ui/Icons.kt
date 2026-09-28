@@ -74,11 +74,13 @@ object Ic {
     val notificationsActive = R.drawable.ic_notifications_active
     val call = R.drawable.ic_call
     val chat = R.drawable.ic_chat
+    val sms = R.drawable.ic_sms
     val dnd = R.drawable.ic_do_not_disturb_on
     val screenshot = R.drawable.ic_screenshot
 
     val previous = R.drawable.ic_skip_previous_fill
     val next = R.drawable.ic_skip_next_fill
+    val volume = R.drawable.ic_volume_up
     val play = R.drawable.ic_play_arrow_fill
     val pause = R.drawable.ic_pause_fill
 
@@ -115,6 +117,9 @@ object Ic {
     val screenShare = R.drawable.ic_screen_share
     val stopScreenShare = R.drawable.ic_stop_screen_share
     val agent = R.drawable.ic_smart_toy
+    val touchpad = R.drawable.ic_touchpad_mouse
+    val keyboard = R.drawable.ic_keyboard
+    val slides = R.drawable.ic_slideshow
 }
 
 /** An icon from [Ic]. It takes the content color unless [tint] is set. */

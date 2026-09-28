@@ -78,8 +78,8 @@ The integrator merged each branch into `macos-client`, resolved the composition 
 
 | Direction | Packet types |
 | --- | --- |
-| Incoming | `kdeconnect.ping`, `kdeconnect.battery`, `kdeconnect.battery.request`, `kdeconnect.clipboard`, `kdeconnect.clipboard.connect`, `kdeconnect.share.request`, `kdeconnect.share.request.update`, `kdeconnect.notification`, `kdeconnect.findmyphone.request`, `kdeconnect.runcommand`, `kdeconnect.mpris`, `kdeconnect.mpris.request`, `kdeconnect.sftp`, `flux.webcam`, `flux.screen`, `flux.mic`, `flux.dnd`, `flux.approve` |
-| Outgoing | `kdeconnect.ping`, `kdeconnect.battery`, `kdeconnect.clipboard`, `kdeconnect.clipboard.connect`, `kdeconnect.share.request`, `kdeconnect.share.request.update`, `kdeconnect.findmyphone.request`, `kdeconnect.runcommand.request`, `kdeconnect.mpris`, `kdeconnect.mpris.request`, `kdeconnect.sftp.request`, `flux.tunnel`, `flux.webcam`, `flux.screen`, `flux.mic`, `flux.dnd`, `flux.approve` |
+| Incoming | `kdeconnect.ping`, `kdeconnect.battery`, `kdeconnect.battery.request`, `kdeconnect.clipboard`, `kdeconnect.clipboard.connect`, `kdeconnect.share.request`, `kdeconnect.share.request.update`, `kdeconnect.notification`, `kdeconnect.runcommand`, `kdeconnect.mpris`, `kdeconnect.sftp`, `flux.webcam`, `flux.screen`, `flux.mic`, `flux.dnd`, `flux.approve` |
+| Outgoing | `kdeconnect.ping`, `kdeconnect.battery`, `kdeconnect.clipboard`, `kdeconnect.clipboard.connect`, `kdeconnect.share.request`, `kdeconnect.share.request.update`, `kdeconnect.runcommand.request`, `kdeconnect.mpris.request`, `kdeconnect.sftp.request`, `flux.tunnel`, `flux.webcam`, `flux.screen`, `flux.mic`, `flux.dnd`, `flux.approve` |
 
 A Mac without an internal battery announces `kdeconnect.battery` as incoming only.
 `fluxd` decides whether to use tunnels from the peer's outgoing `flux.tunnel` (`Link.CanTunnel`), so the Mac does not list it as incoming.
@@ -90,45 +90,41 @@ A Mac without an internal battery announces `kdeconnect.battery` as incoming onl
 | --- | --- |
 | Mirror phone notifications (`kdeconnect.notification` outgoing, `.request`, `.reply`, `.action`) | macOS gives apps no access to other apps' notifications |
 | Call alerts (`kdeconnect.telephony`) | A Mac has no telephony |
+| Text messages (`kdeconnect.sms.messages` outgoing, `kdeconnect.sms.request` and the conversation requests incoming) | macOS gives apps no access to SMS |
 | Read and set Do Not Disturb directly | No public Focus API for an ad hoc signed app. The Mac reads Focus through a Focus filter and sets it by running user-chosen Shortcuts |
-| Control any media app | MediaRemote is private. Only Apple Music and Spotify are controlled, through Apple Events |
 | Camera zoom, exposure, and white balance presets | No macOS API. Zoom is digital, and exposure is a software gain |
-
-The Android app does not send SMS either. `fluxd` supports SMS for other KDE Connect phones.
 
 ## Verified against fluxd
 
-Unless noted, the peer was the headless `fluxd` described above, driven with the `flux` CLI, `flux status --json`, `flux watch`, and the daemon log.
+Unless noted, the peer was the headless `fluxd` described above, driven with `flux-cli`, `flux-cli status --json`, `flux-cli watch`, and the daemon log.
 
 ### Foundation
 
 | Check | Result |
 | --- | --- |
 | Discovery and link | The Mac announced itself over UDP. `fluxd` connected, ran the TLS handshake, and listed the Mac online as `laptop` |
-| Pairing from the computer | `flux pair` showed a request on the Mac. Accepting it paired both sides |
-| Pairing from the Mac | Both sides showed the same key, `B6922FF4`, which confirms the Swift SubjectPublicKeyInfo and hash match Go. `flux accept` paired both sides |
-| Pairing in the app UI | **Pair…**, **Send request**, `flux accept`, then the app showed **Connected** and the toast "Paired with roger" |
+| Pairing from the computer | `flux-cli pair` showed a request on the Mac. Accepting it paired both sides |
+| Pairing from the Mac | Both sides showed the same key, `B6922FF4`, which confirms the Swift SubjectPublicKeyInfo and hash match Go. `flux-cli accept` paired both sides |
+| Pairing in the app UI | **Pair…**, **Send request**, `flux-cli accept`, then the app showed **Connected** and the toast "Paired with roger" |
 | Ping | Both directions |
-| Unpair | `flux unpair` reached the Mac, which dropped the trust |
+| Unpair | `flux-cli unpair` reached the Mac, which dropped the trust |
 | Reconnect | After a restart, the paired Mac reconnected with its pinned certificate and no new prompt |
 
 ### Features
 
 | Feature | What was checked |
 | --- | --- |
-| Files | `flux send` of a 3 MB file arrived over `flux.tunnel` with an identical sha256. Mac to computer arrived in `fluxd`'s download folder |
+| Files | `flux-cli send` of a 3 MB file arrived over `flux.tunnel` with an identical sha256. Mac to computer arrived in `fluxd`'s download folder |
 | Text and links | Both directions |
-| Clipboard | `flux clip` reached the Mac pasteboard. A Mac pasteboard change appeared in `fluxd`'s clipboard history |
+| Clipboard | `flux-cli clip` reached the Mac pasteboard. A Mac pasteboard change appeared in `fluxd`'s clipboard history |
 | Screenshots | A new screenshot in a watched folder was sent once |
-| Notifications | `flux notify` and `flux notify --run` produced Mac notifications, including the exit code. The app delivered a banner |
-| Find my device | "Ring computer" set `ringing=true` in `flux status`. `flux ring` rang the Mac, and Stop and the 2-minute timeout ended it |
-| Battery | `flux status --json` showed the Mac battery, and `battery.request` was answered |
+| Notifications | `flux-cli notify` and `flux-cli notify --run` produced Mac notifications, including the exit code. The app delivered a banner |
+| Battery | `flux-cli status --json` showed the Mac battery, and `battery.request` was answered |
 | Do Not Disturb | With a non-headless `fluxd` and a fake `makoctl`: a Mac change made `fluxd` switch the mako mode. A change on the computer made the Mac run the configured shortcut command. The guard stopped echoes |
-| Media, computer to Mac | `flux media play-pause --device <mac>` toggled Apple Music, and the new state appeared in `flux status --json` |
 | Media, Mac to computer | Request packets and parsing checked in the log and in unit tests. Headless `fluxd` has no MPRIS players |
-| Commands | `flux commands add`, then running it from the Mac created the file on the computer side, from the smoke client and from the app UI |
+| Commands | `flux-cli commands add`, then running it from the Mac created the file on the computer side, from the smoke client and from the app UI |
 | Browse | Listed the home roots, opened subfolders, downloaded files with identical sha256, and showed the `share_home` disabled error. A link drop closed the session, and it reopened after reconnect. The app opened the files window |
-| Microphone | Headless `fluxd` refuses the microphone, and the Mac showed its error. With a copy of `fluxd` without the headless check and a fake `pw-cat`, real audio arrived: 48 kHz, mono, s16le, 96 kB/s, RMS −36 dBFS. `flux mic stop`, a stop from the Mac, input switching, and a killed daemon all stopped capture |
+| Microphone | Headless `fluxd` refuses the microphone, and the Mac showed its error. With a copy of `fluxd` without the headless check and a fake `pw-cat`, real audio arrived: 48 kHz, mono, s16le, 96 kB/s, RMS −36 dBFS. `flux-cli mic stop`, a stop from the Mac, input switching, and a killed daemon all stopped capture |
 | Webcam | Headless `fluxd` reported the missing v4l2loopback module, and the Mac showed it. A throwaway Go peer that uses the repo's `lan` code received real camera H.264: Main profile, level 4.1, no B-frames, SPS and PPS before each IDR, valid in `ffprobe`. Aspect changes from the Mac and from the computer restarted the stream at the new size. Config changes and stops worked |
 | Screen mirror | Mirrored to a real Omarchy computer by hand, with Screen & System Audio Recording allowed for Flux. The Mac screen showed in a window on the computer and worked well |
 | Fingerprint approval | With a copy of the repo's `internal/approve` code, the Go verifier accepted a Touch ID enrollment and approvals for sudo and polkit from the real app. Deny, timeout, the computer's cancel, and Remove Key worked |
@@ -141,15 +137,14 @@ Unless noted, the peer was the headless `fluxd` described above, driven with the
 | --- | --- | --- |
 | **Also send the microphone** with the webcam | Each ad hoc rebuild loses the camera and microphone grants, so it was not run end to end | Start the webcam with the option on and check that `flux.mic` starts and stops with it |
 | Send new photos | Needs full Photos access and a new photo in the personal library | Turn it on, add a photo, and check the computer's photo folder |
-| Spotify control | Spotify is not installed | Install Spotify and repeat the Apple Music check |
 | Media section with real players | Headless `fluxd` on macOS has no MPRIS players | Pair with a real Omarchy computer that plays media |
 | Direct SFTP route (ip and port) | `fluxd` always answers with a tunnel | Only reachable with a peer that offers a direct address |
 | Menu bar items | The automation tool cannot open a `MenuBarExtra` menu | Open the menu bar item by hand and try each entry |
 | Settings window | The shell-launched app could not take keyboard focus | Open **Settings** and change each option |
 | Focus filter in System Settings | Adding the Flux filter and toggling a real Focus was not completed | Add **Flux** under **Focus > Focus filters** and toggle the Focus |
 | Notification actions | System banners were not clicked | Click Accept, Open, Stop, and Approve in the banners |
-| Battery change events | The battery stayed at a constant level during tests | Unplug the charger and watch `flux status --json` |
+| Battery change events | The battery stayed at a constant level during tests | Unplug the charger and watch `flux-cli status --json` |
 | Camera Screen Region and denied-camera screen | Needs a manual selection and a revoked permission | Use **Screen Region** and revoke camera access |
 | Microphone and webcam timeouts when the computer never connects | Not exercised | Block the computer's connection and wait 10 seconds |
 | A real Omarchy computer over Wi-Fi | Every test used a loopback daemon on the Mac | Pair with an Omarchy computer on the same network, including Bonjour discovery and UDP broadcasts |
-| Approval with the real root helper and PAM | Needs root on Linux | Run `sudo flux approve setup` and `enroll` on an Omarchy computer, then `sudo true` |
+| Approval with the real root helper and PAM | Needs root on Linux | Run `sudo flux-cli approve setup` and `enroll` on an Omarchy computer, then `sudo true` |

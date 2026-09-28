@@ -22,11 +22,11 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <!-- Do Not Disturb sync reads and sets the interruption filter. -->
-    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
-    <!-- The Messages page on the computer reads the phone's texts and sends replies. -->
+    <!-- Text messages. The computer reads the conversations and sends a message through the phone. -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- Do Not Disturb sync reads and sets the interruption filter. -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <!-- New screenshots and photos go to the computer when their switch is on. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
@@ -42,6 +42,13 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Dictation in the agent reply field uses the speech recognizer of the phone. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:name=".FluxApp"
@@ -149,6 +156,18 @@
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/shell_file_paths" />
+        </provider>
+
+        <!-- Serves the image that a computer put on the clipboard. The clipboard
+             gives the app that pastes it read access. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.clipboard"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/clipboard_paths" />
         </provider>
 
         <receiver

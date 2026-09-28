@@ -45,6 +45,14 @@ FluxBackend::FluxBackend(QJSEngine *engine, QObject *parent)
     connectNow();
 }
 
+FluxBackend::~FluxBackend()
+{
+    // ~QLocalSocket closes the connection and emits disconnected. At that
+    // time m_pending is already destroyed, and the engine that owns this
+    // object is mid-destruction. Remove the socket handlers first.
+    m_socket.disconnect(this);
+}
+
 QString FluxBackend::socketPath()
 {
     const QString override = qEnvironmentVariable("FLUX_SOCKET");
@@ -225,7 +233,7 @@ void FluxBackend::startDaemon(const QJSValue &cb)
         if (cb.isCallable())
             invoke(cb, {false, QStringLiteral("systemctl is not available")});
     });
-    // The button turns fluxd on, so it removes the marker of `flux off` first.
+    // The button turns fluxd on, so it removes the marker of `flux-cli off` first.
     proc->start(QStringLiteral("sh"),
                 {QStringLiteral("-c"),
                  QStringLiteral("rm -f \"${XDG_CONFIG_HOME:-$HOME/.config}/flux/off\"; systemctl --user start fluxd")});

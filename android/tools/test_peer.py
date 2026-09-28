@@ -5,7 +5,8 @@ The peer reaches the phone through `adb forward`, so no firewall rule is
 needed on the computer. It opens TCP to the app, sends a plain-text
 identity, runs TLS as the server, exchanges the protocol 8 identity, and
 then sends a pairing request. After the user accepts on the phone, it sends
-sample battery, theme, command, and media packets and answers requests.
+sample battery, theme, command, media, and remote input packets and answers
+requests. It prints the packets that the phone sends.
 
 Run it with a debug build installed and USB debugging on:
 
@@ -59,14 +60,15 @@ def make_identity(dev_id, target=None, name="flux-test-peer"):
         "protocolVersion": 8,
         "incomingCapabilities": [
             "kdeconnect.ping", "kdeconnect.battery", "kdeconnect.clipboard", "kdeconnect.clipboard.connect",
-            "kdeconnect.share.request", "kdeconnect.notification", "kdeconnect.findmyphone.request",
-            "kdeconnect.runcommand.request", "kdeconnect.mpris.request", "kdeconnect.sftp.request",
-            "flux.tunnel",
+            "kdeconnect.share.request", "kdeconnect.notification", "kdeconnect.runcommand.request",
+            "kdeconnect.mpris.request", "kdeconnect.sftp.request", "flux.tunnel",
+            "flux.clipboard.image",
+            "kdeconnect.mousepad.request",
         ],
         "outgoingCapabilities": [
             "kdeconnect.ping", "kdeconnect.battery", "kdeconnect.clipboard", "kdeconnect.share.request",
             "kdeconnect.notification.request", "kdeconnect.findmyphone.request", "kdeconnect.runcommand",
-            "kdeconnect.mpris", "kdeconnect.sftp",
+            "kdeconnect.mpris", "kdeconnect.sftp", "flux.clipboard.image", "flux.input",
         ],
     }
     if target:
@@ -80,6 +82,7 @@ def main():
     ap.add_argument("--serial", default=os.environ.get("ANDROID_SERIAL", ""))
     ap.add_argument("--seconds", type=int, default=600, help="how long to answer requests after pairing")
     ap.add_argument("--send-file", help="send this file to the phone after pairing")
+    ap.add_argument("--clipboard-image", help="put this PNG image on the clipboard of the phone after pairing")
     ap.add_argument("--sftp-port", type=int, help="answer Browse PC with an SFTP server on 127.0.0.1:<port>")
     ap.add_argument("--sftp-root", default="/", help="the folder that the SFTP server serves")
     ap.add_argument("--sftp-password", default="flux-test")
@@ -154,21 +157,28 @@ def main():
                 "bar": {"name": "Toggle bar", "command": "omarchy-toggle-bar"},
                 "mute": {"name": "Mute audio", "command": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"}}
     playing = {"v": True}
+    volume = {"v": 60}
 
     def now_playing():
         return {"player": "spotify", "title": "Weightless", "artist": "Marconi Union", "album": "Weightless",
                 "isPlaying": playing["v"], "pos": 192000, "length": 489000, "canSeek": True,
-                "canPlay": True, "canPause": True, "canGoNext": True, "canGoPrevious": True, "volume": 60}
+                "canPlay": True, "canPause": True, "canGoNext": True, "canGoPrevious": True, "volume": volume["v"]}
 
     def after_pair():
         send("kdeconnect.battery", {"currentCharge": 64, "isCharging": False, "thresholdEvent": 0})
         send("kdeconnect.runcommand", {"commandList": json.dumps(commands), "canAddCommand": True})
         send("kdeconnect.mpris", {"playerList": ["spotify"], "supportAlbumArtPayload": False})
+        # The touchpad screen works. The peer prints the input that it gets.
+        send("flux.input", {"enabled": True})
         if args.send_file:
             send_file(args.send_file)
+        if args.clipboard_image:
+            send_file(args.clipboard_image, "flux.clipboard.image", {"mime": "image/png"})
 
-    def send_file(path):
+    def send_file(path, kind="kdeconnect.share.request", body=None):
         data = open(path, "rb").read()
+        if body is None:
+            body = {"filename": os.path.basename(path), "open": False}
         srv = socket.socket()
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         srv.bind(("127.0.0.1", 0))
@@ -176,8 +186,7 @@ def main():
         srv.listen(1)
         # The phone connects to 127.0.0.1:<port> on itself. adb reverse maps it here.
         sh(*adb, "reverse", f"tcp:{port}", f"tcp:{port}")
-        send("kdeconnect.share.request", {"filename": os.path.basename(path), "open": False},
-             payloadSize=len(data), payloadTransferInfo={"port": port})
+        send(kind, body, payloadSize=len(data), payloadTransferInfo={"port": port})
         conn, _ = srv.accept()
         pctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         pctx.maximum_version = ssl.TLSVersion.TLSv1_2
@@ -233,6 +242,9 @@ def main():
                 send("kdeconnect.mpris", now_playing())
             if body.get("action") == "PlayPause":
                 playing["v"] = not playing["v"]
+                send("kdeconnect.mpris", now_playing())
+            if "setVolume" in body:
+                volume["v"] = max(0, min(100, int(body["setVolume"])))
                 send("kdeconnect.mpris", now_playing())
         elif kind == "kdeconnect.sftp.request":
             if args.sftp_port:

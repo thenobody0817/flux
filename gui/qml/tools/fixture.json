@@ -31,7 +31,6 @@
      "share",
      "notification",
      "findmyphone",
-     "mpris",
      "sms",
      "sftp",
      "runcommand",
@@ -86,40 +85,51 @@
       "actions": []
      }
     ],
-    "media": {
-     "player": "spotify",
-     "players": [
-      "spotify"
-     ],
-     "title": "Weightless",
-     "artist": "Marconi Union",
-     "album": "Weightless",
-     "playing": true,
-     "position": 192000,
-     "length": 489000,
-     "canSeek": true
-    },
     "conversations": [
      {
       "thread": 1,
       "name": "Mom",
       "address": "+4791234567",
       "last": "Dinner sunday? bring the kids",
-      "time": -180
+      "time": -180,
+      "addresses": [
+       "+4791234567"
+      ],
+      "unread": true
+     },
+     {
+      "thread": 4,
+      "name": "Dan Kim, Kari",
+      "address": "+4798765432",
+      "addresses": [
+       "+4798765432",
+       "+4790011223"
+      ],
+      "last": "I can bring chairs",
+      "time": -5300,
+      "outgoing": true,
+      "failed": true
      },
      {
       "thread": 2,
       "name": "Dan Kim",
       "address": "+4798765432",
       "last": "on it. the new gaps look great",
-      "time": -8100
+      "time": -8100,
+      "addresses": [
+       "+4798765432"
+      ],
+      "outgoing": true
      },
      {
       "thread": 3,
       "name": "72345",
       "address": "72345",
       "last": "Your code is 482913. Do not share it.",
-      "time": -8640
+      "time": -8640,
+      "addresses": [
+       "72345"
+      ]
      }
     ]
    },
@@ -148,12 +158,10 @@
      "share",
      "notification",
      "findmyphone",
-     "mpris",
      "runcommand",
      "connectivity"
     ],
     "notifications": [],
-    "media": null,
     "conversations": []
    },
    {
@@ -171,7 +179,6 @@
     "signal": null,
     "plugins": [],
     "notifications": [],
-    "media": null,
     "conversations": []
    },
    {
@@ -189,7 +196,6 @@
     "signal": null,
     "plugins": [],
     "notifications": [],
-    "media": null,
     "conversations": []
    }
   ],
@@ -271,7 +277,6 @@
    "autoClipboard": true,
    "notifications": true
   },
-  "ringing": false,
   "commands": [
    {
     "id": "lock",
@@ -387,6 +392,33 @@
     "body": "Your code is 482913. Do not share it.",
     "time": -8640,
     "outgoing": false
+   }
+  ],
+  "4": [
+   {
+    "body": "Dinner at 7 on Friday?",
+    "time": -7200,
+    "outgoing": true
+   },
+   {
+    "body": "Works for me",
+    "time": -6000,
+    "outgoing": false,
+    "name": "Dan Kim",
+    "address": "+4798765432"
+   },
+   {
+    "body": "See you at 7 then",
+    "time": -5400,
+    "outgoing": false,
+    "name": "Kari",
+    "address": "+4790011223"
+   },
+   {
+    "body": "I can bring chairs",
+    "time": -5300,
+    "outgoing": true,
+    "failed": true
    }
   ]
  },

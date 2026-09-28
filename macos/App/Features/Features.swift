@@ -13,14 +13,12 @@ enum PluginRegistry {
             ClipboardPlugin(),
             CaptureWatchPlugin(),
             MprisPlugin(),
-            MacMediaPlugin(),
             RunCommandPlugin(),
             BrowsePlugin(),
             WebcamPlugin(),
             ScreenPlugin(),
             MicPlugin(),
             NotificationsPlugin(),
-            FindMyPhonePlugin(),
             BatteryPlugin(),
             DndPlugin(),
             ApprovePlugin(),
@@ -55,7 +53,6 @@ struct FeatureQuickActions: View {
         Group {
             ShareQuickActions(device: device)
             BrowseQuickAction(device: device)
-            RingQuickAction(device: device)
         }
     }
 }
@@ -77,7 +74,6 @@ struct FeatureBanners: View {
 
     var body: some View {
         Group {
-            RingingBanner(device: device)
             ApproveBanner(device: device)
         }
     }
@@ -88,7 +84,6 @@ struct FeatureSettings: View {
     var body: some View {
         Group {
             ShareSettings()
-            MediaSettings()
             DndSettings()
         }
     }
@@ -107,7 +102,6 @@ struct FeatureMenuItems: View {
             BrowseMenuItem(device: device)
             StreamMenuItems(device: device)
             MicMenuItem(device: device)
-            RingMenuItem(device: device)
             ApproveMenuItem(device: device)
         }
     }

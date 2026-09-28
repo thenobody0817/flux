@@ -10,7 +10,7 @@ For the Mac app, see [Flux for macOS](macos.md#features).
 1. Install [Flux for Android](android.md).
 2. Connect the phone and desktop to the same local network.
 3. Open Flux on the phone.
-4. Run `flux open` on the desktop.
+4. Run `flux-cli open` on the desktop.
 5. Select **+ Pair new device**.
 6. Select the phone.
 7. Compare the 8-character key on both screens.
@@ -19,9 +19,9 @@ For the Mac app, see [Flux for macOS](macos.md#features).
 To pair from the terminal:
 
 ```sh
-flux discover
-flux pair "Pixel 8"
-flux status
+flux-cli discover
+flux-cli pair "Pixel 8"
+flux-cli status
 ```
 
 Flux uses TLS with pinned device certificates after pairing.
@@ -33,10 +33,10 @@ To use the phone away from the local network, see [Connect through Tailscale](ta
 Use the Files and Clipboard pages in the desktop window, or run:
 
 ```sh
-flux send "$HOME/Downloads/report.txt"
-flux clip
-flux clip "Text from the desktop"
-flux url https://omarchy.org
+flux-cli send "$HOME/Downloads/report.txt"
+flux-cli clip
+flux-cli clip "Text from the desktop"
+flux-cli url https://omarchy.org
 ```
 
 On Android, share content to Flux from the system share sheet.
@@ -44,35 +44,94 @@ Received files use `download_dir`.
 The phone can browse the desktop home folder read-only when `share_home` is enabled.
 The tunnel carries SSH traffic without an inbound SSH firewall rule.
 
-## Notifications and SMS
+## Clipboard images
+
+A copied image goes to the other device, like copied text.
+Turn on `auto_clipboard` on the desktop and **Sync clipboard** on the phone.
+Both are on by default.
+
+- Copy an image on the desktop, for example a screenshot. Then paste it in an app on the phone.
+- Copy an image on the phone, open Flux, and tap **Send clipboard**. Then paste it on the desktop.
+
+Android lets only the app on the screen read the clipboard.
+Flux sends a phone copy by itself only while Flux is on the screen.
+For a copy in another app, use **Send clipboard**.
+
+The desktop sends PNG images.
+The phone sends PNG, JPEG, GIF, and WebP images.
+Flux syncs images of up to 16 MiB.
+A copy that also has plain text syncs as text, for example cells from a spreadsheet.
+
+The Clipboard page shows the last 10 images.
+Select **Copy** to put an image on the desktop clipboard again.
+`fluxd` keeps these images in `$XDG_RUNTIME_DIR/flux/clipboard`, which is in memory.
+It empties the folder when it starts and when it stops.
+
+## Notifications
 
 Enable notification access on the phone to show its notifications on the desktop.
+To dismiss all of them, select **Clear all** on the Notifications page, or run:
+
+```sh
+flux-cli notifications clear
+```
+
+Clear all also dismisses the notifications on the phone.
+An ongoing notification, such as a media player, stays.
+
 To send a notification in the other direction:
 
 ```sh
-flux notify "Backup done" "412 files, 2.1 GB"
+flux-cli notify "Backup done" "412 files, 2.1 GB"
 ```
 
 The phone uses the **From computers** notification channel.
 The desktop name identifies the sender.
-Use the Messages page or [SMS command](cli.md#share-and-communicate) to send text messages through the phone.
-Turn on **Text messages** on the phone's device screen and allow SMS access;
-the Messages page then shows the phone's conversations and sends replies.
+
+## Text messages
+
+Turn on **Text messages** on the phone's device screen.
+The phone asks for SMS access and contacts access.
+Flux needs SMS access. Contacts access adds names to the conversations.
+A tablet without a SIM slot does not show the switch.
+
+The desktop then shows the **Messages** page for that phone:
+
+- The list shows the latest message of each conversation. A dot marks an unread conversation.
+- Select a conversation to read its last 100 messages and to reply.
+- Select **New message** to send a text message to a phone number.
+- A new message on the phone appears on the desktop in about 1 second.
+- A reply goes out on the SIM of the conversation. A new message uses the default SMS SIM of the phone.
+
+To send a text message from a script, use the [SMS command](cli.md#share-and-communicate):
+
+```sh
+flux-cli sms '+15550100123' 'On my way'
+```
+
+Flux sends a text message to 1 phone number.
+The page shows group conversations and the text of MMS messages, but you must reply to a group on the phone.
+An MMS attachment shows as a label, for example `[Image]`.
+Flux reads the SMS and MMS database of the phone.
+Chat messages that an app keeps in its own database, for example RCS chats, do not show.
 
 ## Media and desktop commands
 
-The phone controls desktop media players.
-The desktop can also control supported media on the phone:
+The phone controls the media players on the desktop.
+Open **Media** on the phone to play, pause, skip, seek, and set the volume.
+The controls show when a desktop player publishes its state over MPRIS.
+The phone selects the player that plays.
+If more than one player runs, select another player at the top of the screen.
 
-```sh
-flux media play-pause
-```
+The volume control shows only for a player that accepts a new volume, such as mpv.
+Chromium does not accept one, so the phone shows no volume control for it.
+The desktop does not show or control the players on the phone.
 
 Add desktop commands in the Phone commands page or through the CLI:
 
 ```sh
-flux commands add "Lock screen" omarchy-system-lock
-flux commands
+flux-cli commands add "Lock screen" omarchy-system-lock
+flux-cli commands
 ```
 
 A new configuration has no commands.
@@ -184,4 +243,18 @@ herdr_control = true
 ```
 
 Reload with `systemctl --user reload fluxd`.
-See [herdr agents](herdr.md) for the replies, the notifications, and the access rules.
+To talk to an agent, use the mic key next to **Send**. The phone changes your speech to text on the device.
+See [herdr agents](herdr.md) for the replies, dictation, the notifications, and the access rules.
+
+## Touchpad and keyboard
+
+The phone can be a touchpad and a keyboard for the computer.
+To allow it, set:
+
+```toml
+remote_input = true
+```
+
+Reload with `systemctl --user reload fluxd`.
+Then select **Touchpad and keyboard** on the phone's device page.
+See [Touchpad and keyboard](remote-input.md) for the gestures, the keys, and the slides.

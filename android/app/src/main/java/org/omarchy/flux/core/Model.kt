@@ -24,6 +24,10 @@ data class PlayerState(
     val position: Long = 0,
     val length: Long = 0,
     val canSeek: Boolean = false,
+    val canGoNext: Boolean = true,
+    val canGoPrevious: Boolean = true,
+    /** The volume from 0 to 100, or null when the player takes no volume. */
+    val volume: Int? = null,
     /** The time of the position value, from SystemClock.elapsedRealtime. */
     val updatedAt: Long = 0,
 )
@@ -84,6 +88,10 @@ data class DeviceUi(
     val herdrOutput: HerdrOutput? = null,
     /** The last reply from the agent screen. */
     val herdrReply: HerdrReply? = null,
+    /** True when the computer can take the touchpad and the keyboard of this phone. */
+    val inputSupported: Boolean = false,
+    /** True when remote input is on at the computer, or null before it tells. */
+    val remoteInput: Boolean? = null,
 )
 
 /** A snapshot of the whole app for the UI. */
@@ -104,9 +112,13 @@ data class UiState(
     /** Call alerts are on. [callAccess] is true when the phone allows them. */
     val callAlerts: Boolean = false,
     val callAccess: Boolean = false,
-    /** Texts are shared. [smsAccess] is true when the phone allows Flux to read them. */
-    val shareSms: Boolean = false,
+    /**
+     * Text messages are on. [smsAccess] is true when the phone allows them,
+     * and [smsSupported] is true when the phone can send text messages.
+     */
+    val smsSync: Boolean = false,
     val smsAccess: Boolean = false,
+    val smsSupported: Boolean = false,
     /** Notify when a herdr agent on a computer needs input. */
     val agentInputAlerts: Boolean = true,
     /** Notify when a herdr agent on a computer finishes. */

@@ -88,7 +88,18 @@ object FluxCore {
     val tls: org.omarchy.flux.net.Tls? get() = backend?.tls
 
     fun identity(tcpPort: Int): Identity =
-        Identity.self(local.deviceId, deviceName, tcpPort, localWakeMacs, sms = settings.shareSms && Android.hasSms(app))
+        Identity.self(local.deviceId, deviceName, tcpPort, localWakeMacs, sms = SmsSync.enabled(app), clipboardImages = settings.syncClipboard)
+
+    /**
+     * Sends the identity again to each connected computer. The SMS packet
+     * types in it follow the Text messages switch, and a computer shows its
+     * Messages page from them. The clipboard image type follows the Sync
+     * clipboard switch.
+     */
+    fun sendIdentity() {
+        val p = identity(0).toPacket()
+        connectedPaired().forEach { it.send(p) }
+    }
 
     // ---------------------------------------------------------------- network
 
@@ -202,8 +213,9 @@ object FluxCore {
                 notificationAccess = Android.hasNotificationAccess(app),
                 callAlerts = settings.callAlerts,
                 callAccess = Android.hasPhoneState(app),
-                shareSms = settings.shareSms,
-                smsAccess = Android.hasSms(app),
+                smsSync = settings.syncSms,
+                smsAccess = SmsSync.hasAccess(app),
+                smsSupported = SmsSync.supported(app),
                 agentInputAlerts = settings.agentInputAlerts,
                 agentDoneAlerts = settings.agentDoneAlerts,
                 ringingFrom = ringingFrom,
@@ -308,6 +320,7 @@ object FluxCore {
 
     fun setSyncClipboard(on: Boolean) {
         settings.syncClipboard = on
+        sendIdentity()
         publish()
     }
 
@@ -316,11 +329,9 @@ object FluxCore {
         publish()
     }
 
-    /** Turns the sharing of this phone's texts on or off, and re-announces the capability. */
-    fun setShareSms(on: Boolean) {
-        settings.shareSms = on
+    fun setSyncSms(on: Boolean) {
+        settings.syncSms = on
         publish()
-        rediscover()
     }
 
     fun setSyncDnd(on: Boolean) {

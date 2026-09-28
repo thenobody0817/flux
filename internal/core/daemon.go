@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,15 +37,21 @@ type Daemon struct {
 
 	clipboard     []ClipEntry
 	lastLocalClip time.Time
-	transfers     []*Transfer
-	ringing       bool
-	ringFrom      string
+	// clipDir holds the images of the clipboard history. clipSend stops
+	// the image that fluxd sends to the phones, when a newer copy replaces
+	// it.
+	clipDir   string
+	clipSend  context.CancelFunc
+	transfers []*Transfer
 
-	opts     Options
-	clip     clipboard
+	opts Options
+	clip clipboard
+	// input moves the pointer and types for the phone. It is nil in a
+	// headless daemon. inputQ holds the actions in order.
+	input    inputBackend
+	inputQ   chan inputAction
 	notifier *desktop.Notifier
 	media    *desktop.Media
-	ringer   ringer
 	// callPlayers are the players that a call pauses. It is the desktop
 	// media when media control works, else nil.
 	callPlayers callMedia
@@ -101,15 +109,11 @@ type Options struct {
 }
 
 type clipboard interface {
-	Watch(ctx context.Context, onChange func(text string))
+	Watch(ctx context.Context, onText func(text string), onImage func(data []byte, mime string))
 	Get() (string, error)
+	GetImage() ([]byte, error)
 	Set(text string) error
 	SetImage(data []byte, mime string) error
-}
-
-type ringer interface {
-	Start()
-	Stop()
 }
 
 // memClipboard is the clipboard of a headless daemon.
@@ -120,11 +124,18 @@ type memClipboard struct {
 	mime  string
 }
 
-func (m *memClipboard) Watch(ctx context.Context, _ func(string)) { <-ctx.Done() }
+func (m *memClipboard) Watch(ctx context.Context, _ func(string), _ func([]byte, string)) {
+	<-ctx.Done()
+}
 func (m *memClipboard) Get() (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.text, nil
+}
+func (m *memClipboard) GetImage() ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.image, nil
 }
 func (m *memClipboard) Set(text string) error {
 	m.mu.Lock()
@@ -138,11 +149,6 @@ func (m *memClipboard) SetImage(data []byte, mime string) error {
 	m.image, m.mime = data, mime
 	return nil
 }
-
-type silentRinger struct{}
-
-func (silentRinger) Start() {}
-func (silentRinger) Stop()  {}
 
 // New loads the identity, the configuration, and the trust store. The
 // context ends the transfers and sessions that the daemon starts.
@@ -164,7 +170,9 @@ func New(ctx context.Context, logger *log.Logger, opts Options) (*Daemon, error)
 		opts:    opts,
 		devices: map[string]*Device{},
 		clip:    desktop.NewClipboard(),
-		ringer:  &desktop.Ringer{},
+		clipDir: filepath.Join(config.RuntimeDir(), "clipboard"),
+		input:   desktop.NewInput(),
+		inputQ:  make(chan inputAction, inputQueue),
 		subs:    map[int]func(string, any){},
 		dirty:   make(chan struct{}, 1),
 		ctx:     ctx,
@@ -174,7 +182,11 @@ func New(ctx context.Context, logger *log.Logger, opts Options) (*Daemon, error)
 		herdrWake: make(chan struct{}, 1),
 	}
 	if opts.Headless {
-		d.clip, d.ringer = &memClipboard{}, silentRinger{}
+		d.clip = &memClipboard{}
+		// A headless daemon can share the runtime folder with the daemon of
+		// the desktop, so it keeps its clipboard images in its own folder.
+		d.clipDir = filepath.Join(os.TempDir(), "fluxd-clipboard-"+config.NewID(6))
+		d.input = nil
 	}
 	for _, t := range trust.All() {
 		dev := d.deviceLocked(t.ID)
@@ -297,7 +309,9 @@ func (d *Daemon) Run() error {
 		d.logf("Omarchy theme sync off: omarchy not found")
 	}
 
-	go d.clip.Watch(ctx, d.onLocalClipboard)
+	removeClipImages(d.clipDir)
+	go d.clip.Watch(ctx, d.onLocalClipboard, d.onLocalImage)
+	go d.inputLoop(ctx)
 	go d.publishLoop(ctx)
 	go d.discoveryLoop(ctx)
 	go d.batteryLoop(ctx)
@@ -305,7 +319,11 @@ func (d *Daemon) Run() error {
 
 	<-ctx.Done()
 	d.closeLinks()
-	d.ringer.Stop()
+	removeClipImages(d.clipDir)
+	_ = os.Remove(d.clipDir)
+	if in, ok := d.input.(*desktop.Input); ok {
+		in.Close()
+	}
 	d.mu.Lock()
 	loop := d.loopback
 	d.mu.Unlock()
@@ -636,8 +654,11 @@ func (d *Daemon) onPairedLink(dev *Device, l *lan.Link) {
 	if dev.supports(proto.TypeNotification) {
 		_ = l.Send(proto.New(proto.TypeNotificationRequest, map[string]any{"request": true}))
 	}
-	if dev.supports(proto.TypeMpris) {
-		_ = l.Send(proto.New(proto.TypeMprisRequest, map[string]any{"requestPlayerList": true}))
+	if dev.accepts(proto.TypeFluxInput) {
+		d.sendInputState(l)
+	}
+	if d.media != nil && dev.supports(proto.TypeMprisRequest) {
+		d.sendPlayers(l)
 	}
 	d.sendThemeTo(dev.ID)
 	if dev.accepts(proto.TypeFluxHerdr) {

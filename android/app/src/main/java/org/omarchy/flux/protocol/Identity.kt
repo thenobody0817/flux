@@ -26,12 +26,11 @@ object Types {
     const val SFTP = "kdeconnect.sftp"
     const val SFTP_REQUEST = "kdeconnect.sftp.request"
     const val TELEPHONY = "kdeconnect.telephony"
-
-    /** The phone sends its texts, and answers the computer's requests for them. */
     const val SMS_MESSAGES = "kdeconnect.sms.messages"
     const val SMS_REQUEST = "kdeconnect.sms.request"
     const val SMS_REQUEST_CONVERSATIONS = "kdeconnect.sms.request_conversations"
     const val SMS_REQUEST_CONVERSATION = "kdeconnect.sms.request_conversation"
+    const val MOUSEPAD_REQUEST = "kdeconnect.mousepad.request"
 
     /** Flux extension: this phone opens a listener that the computer connects to. */
     const val FLUX_TUNNEL = "flux.tunnel"
@@ -69,6 +68,12 @@ object Types {
 
     /** Flux extension: the computer sends its herdr agents, and this phone asks for their output. Both sides send it. */
     const val FLUX_HERDR = "flux.herdr"
+
+    /** Flux extension: an image that one side copied, as the payload, with {"mime": "image/png"}. Both sides send it. */
+    const val FLUX_CLIPBOARD_IMAGE = "flux.clipboard.image"
+
+    /** Flux extension: the computer tells whether it accepts remote input, {"enabled": bool}. */
+    const val FLUX_INPUT = "flux.input"
 }
 
 /** Packet types that the phone accepts. */
@@ -78,8 +83,7 @@ val INCOMING = listOf(
     Types.NOTIFICATION_ACTION, Types.FIND_MY_PHONE, Types.RUN_COMMAND, Types.MPRIS,
     Types.SFTP, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
-    Types.FLUX_THEME, Types.FLUX_HERDR,
-    Types.SMS_REQUEST, Types.SMS_REQUEST_CONVERSATIONS, Types.SMS_REQUEST_CONVERSATION,
+    Types.FLUX_THEME, Types.FLUX_HERDR, Types.FLUX_INPUT,
 )
 
 /** Packet types that the phone sends. */
@@ -88,8 +92,22 @@ val OUTGOING = listOf(
     Types.SHARE_UPDATE, Types.NOTIFICATION, Types.FIND_MY_PHONE, Types.RUN_COMMAND_REQUEST,
     Types.MPRIS_REQUEST, Types.SFTP_REQUEST, Types.TELEPHONY, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
-    Types.FLUX_THEME_REQUEST, Types.FLUX_HERDR, Types.SMS_MESSAGES,
+    Types.FLUX_THEME_REQUEST, Types.FLUX_HERDR, Types.FLUX_CLIPBOARD_IMAGE, Types.MOUSEPAD_REQUEST,
 )
+
+/**
+ * The phone accepts clipboard images only while Sync clipboard is on, so
+ * that a computer does not send an image that the phone drops.
+ */
+val CLIPBOARD_IMAGE_INCOMING = listOf(Types.FLUX_CLIPBOARD_IMAGE)
+
+/**
+ * The SMS packet types. The phone lists them only while text messages are
+ * on and the phone allows SMS access, so that a computer shows its
+ * Messages page only when the phone can answer.
+ */
+val SMS_INCOMING = listOf(Types.SMS_REQUEST, Types.SMS_REQUEST_CONVERSATIONS, Types.SMS_REQUEST_CONVERSATION)
+val SMS_OUTGOING = listOf(Types.SMS_MESSAGES)
 
 /** The body of a kdeconnect.identity packet. */
 data class Identity(
@@ -152,13 +170,22 @@ data class Identity(
         }
 
         /**
-         * The phone's own identity. [sms] is true when the Messages switch is on
-         * and the phone may read and send texts, so the computer shows its
-         * Messages page. Without it, the phone does not advertise the plugin.
+         * The identity of this phone. [sms] adds the SMS packet types, and
+         * [clipboardImages] adds the incoming clipboard images. [wakeMacs]
+         * are the hardware addresses of this phone's interfaces, so that a
+         * computer can wake it.
          */
-        fun self(deviceId: String, name: String, tcpPort: Int, wakeMacs: List<String> = emptyList(), sms: Boolean = false) = Identity(
-            deviceId, cleanName(name), "phone", PROTOCOL_VERSION, INCOMING,
-            if (sms) OUTGOING else OUTGOING.filterNot { it == Types.SMS_MESSAGES },
+        fun self(
+            deviceId: String,
+            name: String,
+            tcpPort: Int,
+            wakeMacs: List<String> = emptyList(),
+            sms: Boolean = false,
+            clipboardImages: Boolean = false,
+        ) = Identity(
+            deviceId, cleanName(name), "phone", PROTOCOL_VERSION,
+            INCOMING + (if (sms) SMS_INCOMING else emptyList()) + (if (clipboardImages) CLIPBOARD_IMAGE_INCOMING else emptyList()),
+            if (sms) OUTGOING + SMS_OUTGOING else OUTGOING,
             tcpPort, wakeMacs.filter { validMac(it) },
         )
     }

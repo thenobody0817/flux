@@ -1,5 +1,6 @@
-// Command flux is the command line client of fluxd. It also opens the Flux
-// window.
+// Command flux-cli is the command line client of fluxd. It also opens the
+// Flux window. The package installs the short name flux too, when no other
+// program uses it.
 package main
 
 import (
@@ -19,12 +20,12 @@ import (
 
 var version = "dev"
 
-const usage = `Usage: flux [command] [--device NAME] [args]
+const usage = `Usage: flux-cli [command] [--device NAME] [args]
 
 Commands:
   open [page]            Open the Flux window: the omarchy-shell plugin when it is
                          enabled, else flux-gui. Pages: overview, clipboard, files,
-                         notifications, media, messages, commands, browse
+                         notifications, messages, commands, browse
   status [--json]        Show this computer and the known devices
   discover               Broadcast this computer on the network now
   pair DEVICE            Ask a device to pair and show the verification key
@@ -44,8 +45,9 @@ Commands:
   clip [TEXT]            Send the clipboard, or TEXT
   url URL                Open a URL on the phone
   sms NUMBER TEXT...     Send a text message through the phone
-  media ACTION           play-pause, play, pause, next, previous, or stop
   notifications          List the phone notifications
+  notifications clear    Dismiss the phone notifications, on the phone and here.
+                         Ongoing notifications, such as a media player, stay
   notify TITLE [BODY]    Show a notification on the phone
   notify --run -- CMD…   Run CMD, then show on the phone how it ended. Exits with
                          the exit code of CMD
@@ -72,7 +74,7 @@ Commands:
   doctor                 Check the setup and print the fixes
   version                Print the version
 
-Without --device, flux uses the only connected paired device.
+Without --device, flux-cli uses the only connected paired device.
 `
 
 func main() {
@@ -113,13 +115,15 @@ func main() {
 		err = call("share.url", map[string]any{"device": device, "url": need(args, "URL")})
 	case "sms":
 		if len(args) < 2 {
-			fail("Usage: flux sms NUMBER TEXT...")
+			fail("Usage: flux-cli sms NUMBER TEXT...")
 		}
 		err = call("sms.send", map[string]any{"device": device, "addresses": []string{args[0]}, "body": strings.Join(args[1:], " ")})
-	case "media":
-		err = media(device, need(args, "ACTION"))
 	case "notifications":
-		err = notifications(device)
+		if first(args) == "clear" {
+			err = clearNotifications(device)
+		} else {
+			err = notifications(device)
+		}
 	case "notify":
 		err = notify(device, args)
 	case "commands":
@@ -145,15 +149,15 @@ func main() {
 	case "doctor":
 		doctor()
 	case "version", "--version":
-		fmt.Println("flux", version)
+		fmt.Println("flux-cli", version)
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 	default:
-		fmt.Fprintf(os.Stderr, "flux: unknown command %q\n\n%s", cmd, usage)
+		fmt.Fprintf(os.Stderr, "flux-cli: unknown command %q\n\n%s", cmd, usage)
 		os.Exit(2)
 	}
 	if err != nil {
-		fail("flux: %v", err)
+		fail("flux-cli: %v", err)
 	}
 }
 
@@ -187,7 +191,7 @@ func first(args []string) string {
 
 func need(args []string, name string) string {
 	if len(args) == 0 || args[0] == "" {
-		fail("flux: give %s", name)
+		fail("flux-cli: give %s", name)
 	}
 	return args[0]
 }
@@ -372,7 +376,7 @@ func addresses(device string, args []string) error {
 	case shown == 0:
 		fmt.Println("No paired devices. Pair a device on the local network first.")
 	case empty > 0:
-		fmt.Println("To add one, run: flux --device NAME addresses add HOST")
+		fmt.Println("To add one, run: flux-cli --device NAME addresses add HOST")
 	}
 	return nil
 }
@@ -386,7 +390,7 @@ func joinOrNone(list []string) string {
 
 func send(device string, files []string) error {
 	if len(files) == 0 {
-		fail("Usage: flux send FILE...")
+		fail("Usage: flux-cli send FILE...")
 	}
 	paths := make([]string, 0, len(files))
 	for _, f := range files {
@@ -404,18 +408,6 @@ func send(device string, files []string) error {
 	}
 	fmt.Printf("Sending %d file(s)\n", len(res.Transfers))
 	return nil
-}
-
-func media(device, action string) error {
-	actions := map[string]string{
-		"play-pause": "PlayPause", "play": "Play", "pause": "Pause",
-		"next": "Next", "previous": "Previous", "prev": "Previous", "stop": "Stop",
-	}
-	a, ok := actions[action]
-	if !ok {
-		return fmt.Errorf("unknown media action %q", action)
-	}
-	return call("media.action", map[string]any{"device": device, "action": a})
 }
 
 func notifications(device string) error {
@@ -437,11 +429,26 @@ func notifications(device string) error {
 	return nil
 }
 
+func clearNotifications(device string) error {
+	var res struct {
+		Dismissed int `json:"dismissed"`
+	}
+	if err := callInto("notification.dismissAll", map[string]any{"device": device}, &res); err != nil {
+		return err
+	}
+	if res.Dismissed == 1 {
+		fmt.Println("Dismissed 1 notification")
+	} else {
+		fmt.Printf("Dismissed %d notifications\n", res.Dismissed)
+	}
+	return nil
+}
+
 func commands(args []string) error {
 	switch first(args) {
 	case "add":
 		if len(args) < 3 {
-			fail("Usage: flux commands add NAME COMMAND...")
+			fail("Usage: flux-cli commands add NAME COMMAND...")
 		}
 		var res struct {
 			ID string `json:"id"`
@@ -462,7 +469,7 @@ func commands(args []string) error {
 		return err
 	}
 	if len(s.Commands) == 0 {
-		fmt.Println(`No commands. Add one: flux commands add "Lock screen" omarchy-system-lock`)
+		fmt.Println(`No commands. Add one: flux-cli commands add "Lock screen" omarchy-system-lock`)
 		return nil
 	}
 	for _, c := range s.Commands {
@@ -534,7 +541,7 @@ var webcamKeys = []string{"aspect", "resolution", "camera", "mirror", "zoom", "e
 // false become booleans, numbers become numbers, and the rest stays text.
 func webcamSettings(args []string) (map[string]any, error) {
 	if len(args) == 0 {
-		return nil, errors.New("give at least 1 KEY=VALUE, for example: flux webcam set aspect=16:9")
+		return nil, errors.New("give at least 1 KEY=VALUE, for example: flux-cli webcam set aspect=16:9")
 	}
 	cfg := map[string]any{}
 	for _, a := range args {

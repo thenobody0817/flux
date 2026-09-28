@@ -78,17 +78,48 @@ object Android {
         return pct to plugged
     }
 
-    /** Reads the clipboard. Android returns null when the app has no focus. */
+    /**
+     * Reads the clipboard as text. It returns null for an image. Android
+     * returns null when the app has no focus.
+     */
     fun clipboardText(context: Context): String? {
         val cm = context.getSystemService(ClipboardManager::class.java) ?: return null
         val clip = cm.primaryClip ?: return null
         if (clip.itemCount == 0) return null
-        return clip.getItemAt(0).coerceToText(context)?.toString()
+        val item = clip.getItemAt(0)
+        // For an image, coerceToText returns the content:// address.
+        if (item.text == null && item.uri != null && clip.description.hasMimeType("image/*")) return null
+        return item.coerceToText(context)?.toString()
     }
 
     fun setClipboard(context: Context, text: String) {
         val cm = context.getSystemService(ClipboardManager::class.java) ?: return
         cm.setPrimaryClip(ClipData.newPlainText("Flux", text))
+    }
+
+    /**
+     * Reads an image from the clipboard. It returns the address and the MIME
+     * type of the image, or null when the clipboard holds no image that
+     * Flux syncs. Android returns null when the app has no focus.
+     */
+    fun clipboardImage(context: Context): Pair<Uri, String>? {
+        val cm = context.getSystemService(ClipboardManager::class.java) ?: return null
+        val clip = cm.primaryClip ?: return null
+        if (clip.itemCount == 0) return null
+        val item = clip.getItemAt(0)
+        val uri = item.uri ?: return null
+        if (item.text != null) return null
+        val desc = clip.description
+        val types = (0 until desc.mimeTypeCount).map { desc.getMimeType(it) } +
+            runCatching { context.contentResolver.getType(uri) }.getOrNull()
+        val mime = ClipImage.pickType(types) ?: return null
+        return uri to mime
+    }
+
+    /** Puts the image at [uri] on the clipboard. Flux must own the address. */
+    fun setClipboardImage(context: Context, uri: Uri) {
+        val cm = context.getSystemService(ClipboardManager::class.java) ?: return
+        cm.setPrimaryClip(ClipData.newUri(context.contentResolver, "Flux", uri))
     }
 
     /**
@@ -116,7 +147,7 @@ object Android {
             description = "Received files, links, and pairing requests"
         })
         nm.createNotificationChannel(NotificationChannel(CHANNEL_COMPUTER, "From computers", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Notifications that a computer sends, for example with flux notify"
+            description = "Notifications that a computer sends, for example with flux-cli notify"
         })
         nm.createNotificationChannel(NotificationChannel(CHANNEL_RING, "Find my phone", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Rings the phone when a computer asks"
@@ -236,10 +267,21 @@ object Android {
         androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
 
-    /** True when the phone lets Flux read its text messages. */
-    fun hasSms(context: Context): Boolean =
-        androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_SMS) ==
+    /** True when the phone lets Flux read the contacts. */
+    fun hasContacts(context: Context): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /** The name of the contact with the phone number, or null without the contacts permission. */
+    fun contactName(context: Context, number: String): String? {
+        if (number.isBlank() || !hasContacts(context)) return null
+        val uri = Uri.withAppendedPath(android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+        return runCatching {
+            context.contentResolver.query(uri, arrayOf(android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull()
+    }
 
     /** A file in the public Downloads folder that is still being written. */
     class Download(val uri: Uri, val stream: OutputStream)

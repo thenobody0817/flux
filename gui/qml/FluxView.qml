@@ -17,7 +17,6 @@ Item {
     { key: "clipboard", label: "Clipboard", page: "Clipboard", icon: "clipboard" },
     { key: "files", label: "Files", page: "Files", icon: "transfers" },
     { key: "notifications", label: "Notifications", page: "Notifications", icon: "bell" },
-    { key: "media", label: "Media", page: "Media", icon: "music" },
     { key: "messages", label: "Messages", page: "Messages", icon: "message" },
     { key: "browse", label: "Browse files", page: "Browse", icon: "browse" },
     { key: "commands", label: "Phone commands", page: "PhoneCommands", icon: "console" }
@@ -652,14 +651,8 @@ Item {
         anchors.verticalCenter: title.verticalCenter
         spacing: 8
         visible: !!root.dev
-        AccentButton {
-          visible: !!root.backend && root.backend.ringing
-          icon: "bell-off"
-          text: root.compactHeader ? "" : "Stop ringing"
-          anchors.verticalCenter: parent.verticalCenter
-          onClicked: root.call("ring.stop", {})
-        }
         OutlineButton {
+          visible: root.has("findmyphone")
           icon: "bell-ring"
           text: root.compactHeader ? "" : "Ring " + Fmt.noun(root.dev ? root.dev.type : "")
           active: root.devOnline

@@ -51,7 +51,7 @@ To change the icons, edit and run `swift macos/tools/render-icon.swift`.
 3. Select the computer in the sidebar, then **Pair…**, then **Send request**.
 4. Accept the request on the computer when it shows the same 8-character key.
 
-You can also start from the computer with `flux pair` and accept on the Mac.
+You can also start from the computer with `flux-cli pair` and accept on the Mac.
 The Mac announces itself with UDP broadcasts on port 1716 and as `_kdeconnect._udp` through Bonjour, like the phone.
 It appears on the computer as `laptop` when it has a battery and `desktop` otherwise.
 
@@ -60,17 +60,16 @@ It appears on the computer as `laptop` when it has a battery and `desktop` other
 | Feature | Mac behavior |
 | --- | --- |
 | Files, text, and links | Send from the device page, a drop on the window or Dock icon, **Open With**, or **Services > Send to Flux**. Received files go to `~/Downloads` or the folder in Settings. |
-| Clipboard | Syncs both ways while a paired computer is connected. Password manager entries are not synced automatically. |
+| Clipboard | Syncs text both ways while a paired computer is connected. Password manager entries are not synced automatically. Images do not sync to or from the Mac. |
 | Screenshots and photos | **Send new screenshots** watches the macOS screenshot folder. **Send new photos** sends new photos from the Photos library and needs full Photos access. |
-| Media | Controls the computer's players. The computer controls Apple Music and Spotify on the Mac after you allow Automation for each app. |
+| Media | Controls the computer's players. The computer does not control the players on the Mac. |
 | Commands | Lists and runs the commands configured on the computer. |
 | Browse | Opens the computer's shared folders read-only through SSH inside a `flux.tunnel`, and downloads files. |
 | Webcam | Streams a Mac camera, including Continuity Camera, to the computer as a virtual webcam in H.264. Zoom is digital, and exposure is a software gain, because macOS gives apps no camera zoom or exposure control. **Also send the microphone** starts the microphone with the webcam. |
 | Screen mirror | Streams a display to a window on the computer in H.264, with the long side at most 1080 pixels. |
 | Camera modes | Text, QR, Photo, Document, and Signature, like the phone. Text, QR, and Document also read an opened, pasted, or dropped image or a screen region. Signature also accepts a drawn signature. |
 | Microphone | Streams the Mac microphone as 48 kHz mono audio. |
-| Notifications | Shows notifications from `flux notify`. |
-| Find my device | The computer rings the Mac at the current system volume. The Mac rings the computer. |
+| Notifications | Shows notifications from `flux-cli notify`. |
 | Battery | A Mac with a battery reports it. The page shows the computer's battery. |
 | Do Not Disturb | See [Focus](#focus). |
 | Fingerprint approval | Approves `sudo` and polkit with Touch ID. See [approval](#approval). |
@@ -112,7 +111,6 @@ macOS asks for each permission on first use:
 | Camera | Webcam and camera modes |
 | Microphone | Microphone |
 | Screen & System Audio Recording | Screen mirror |
-| Automation | Control of Apple Music and Spotify |
 | Photos | Send new photos |
 | Downloads folder | Received files |
 
@@ -135,7 +133,7 @@ FLUX_DATA_DIR=/tmp/flux-mac FLUX_UDP_PORT=28731 FLUX_PEER_UDP_PORT=28716 FLUX_LO
 | `FLUX_LOOPBACK=1` | Announce only to 127.0.0.1 and skip Bonjour |
 
 Headless `fluxd` has no clipboard, notification, media, or stream backends.
-Check its side with `flux status --json`, `flux watch`, and its log.
+Check its side with `flux-cli status --json`, `flux-cli watch`, and its log.
 
 To read the Mac logs:
 

@@ -36,7 +36,7 @@ Method names and parameter handling live in `internal/core/api.go`.
 ## State and events
 
 Call `state` for a snapshot.
-The snapshot includes `self`, `devices`, `clipboard`, `transfers`, `commands`, `settings`, `webcam`, `mic`, `screen`, `herdr`, and ring state.
+The snapshot includes `self`, `devices`, `clipboard`, `transfers`, `commands`, `settings`, `webcam`, `mic`, `screen`, and `herdr`.
 
 To receive events, send:
 
@@ -56,8 +56,8 @@ Events can arrive before the subscription response.
 For shell scripts, use the CLI wrappers:
 
 ```sh
-flux status --json
-flux watch
+flux-cli status --json
+flux-cli watch
 ```
 
 ## Method groups
@@ -69,13 +69,54 @@ flux watch
 | Addresses | `addresses.add`, `addresses.remove` |
 | Sharing | `clipboard.send`, `share.files`, `share.url` |
 | Commands | `commands.add`, `commands.remove`, `commands.run` |
-| Media | `media.action` |
+| Notifications | `notification.dismiss`, `notification.dismissAll`, `notification.reply` |
+| Text messages | `sms.refresh`, `sms.thread`, `sms.send` |
 | Streams | `webcam.config`, `webcam.stop`, `mic.stop`, `screen.stop` |
 | Approval | `approve.request`, `approve.wait`, `approve.enroll` |
 | eyec | `eyec.permit`, `eyec.permit.wait`, `eyec.permit.cancel`, `eyec.actions`, `eyec.trigger` |
 
 Read the handler before you add a client call.
 The approval helper applies additional peer and signature checks beyond this general socket protocol.
+
+## Clipboard
+
+Each `clipboard` entry has `text`, or an `image` with the path of a PNG, JPEG, GIF, or WebP file.
+The text of an image entry is empty.
+
+To put an entry on the desktop clipboard again, call `clipboard.copy` with `text`, or with `path` for an image:
+
+```json
+{"id":4,"method":"clipboard.copy","params":{"path":"/run/user/1000/flux/clipboard/clip-a1b2c3.png"}}
+```
+
+The path must be the `image` of an entry in the history.
+`clipboard.send` without `text` sends the image on the desktop clipboard, or else its text.
+
+## Text messages
+
+`sms.refresh` asks the phone for the latest message of each conversation.
+The conversations arrive in the `conversations` list of the device in the next state event.
+`sms.thread` returns the last 100 messages of 1 conversation, the oldest first:
+
+```json
+{"id":5,"method":"sms.thread","params":{"device":"Pixel 8","thread":12}}
+{"id":5,"result":{"messages":[{"id":881,"thread":12,"body":"On my way","address":"+15550100123","addresses":["+15550100123"],"name":"Kari","time":1790000000,"outgoing":true,"pending":false,"failed":false,"read":true}]}}
+```
+
+`name` is the contact name, or the address when the phone has no contact.
+`pending` marks a sent message that is still on its way, and `failed` marks a sent message that the phone could not send.
+A phone that does not answer in 8 seconds returns the `timeout` error.
+
+`sms.send` sends a text message through the phone:
+
+```json
+{"id":6,"method":"sms.send","params":{"device":"Pixel 8","addresses":["+15550100123"],"body":"On my way"}}
+{"id":6,"result":{}}
+```
+
+The result means that the request went to the phone.
+The phone reports the sent message, and the conversation changes in a later state event.
+Flux for Android sends a text message to 1 address. More addresses return the `unsupported` error.
 
 ## Extra addresses
 
