@@ -3,6 +3,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -58,9 +59,11 @@ type Daemon struct {
 	calls       map[string]*callState
 
 	// dnd is the Do Not Disturb of the desktop, or nil when the desktop has
-	// no supported notification service.
+	// no supported notification service. dndWake makes dndLoop check again
+	// whether it must read the state.
 	dnd      dndBackend
 	dndGuard dndGuard
+	dndWake  chan struct{}
 
 	// theme is the active Omarchy theme, or nil when Omarchy is not
 	// installed.
@@ -75,20 +78,30 @@ type Daemon struct {
 	webcamConfig json.RawMessage
 	webcamCaps   json.RawMessage
 	loopback     *desktop.Loopback
+	loopMu       sync.Mutex // held while fluxd creates loopback
 
 	mic       *micSession
 	micErr    string
 	screen    *screenSession
 	screenErr string
-	approvals approvalBook
-	eyec      eyecBook
+	// desktop streams this screen to a phone.
+	desktop    *desktopSession
+	desktopErr string
+	approvals  approvalBook
+	eyec       eyecBook
 
-	// herdrPath is the API socket of herdr. herdrRunning and herdrAgents
-	// are the last state that the herdr loop read. herdrWake makes the
-	// loop check the setting and read the session again.
+	// herdrPath is the API socket of herdr. herdrRunning, herdrAgents,
+	// herdrTerms, herdrPlaces, and herdrKinds are the last state that the
+	// herdr loop read. herdrHistory keeps the last plain history of each
+	// agent for the reads while it works. herdrWake makes the loop check
+	// the setting and read the session again.
 	herdrPath    string
 	herdrRunning bool
 	herdrAgents  []HerdrAgent
+	herdrTerms   []HerdrTerminal
+	herdrPlaces  []HerdrWorkspace
+	herdrKinds   []string
+	herdrHistory map[string][]string
 	herdrWake    chan struct{}
 
 	subs   map[int]func(event string, data any)
@@ -180,6 +193,7 @@ func New(ctx context.Context, logger *log.Logger, opts Options) (*Daemon, error)
 
 		herdrPath: herdr.SocketPath(),
 		herdrWake: make(chan struct{}, 1),
+		dndWake:   make(chan struct{}, 1),
 	}
 	if opts.Headless {
 		d.clip = &memClipboard{}
@@ -255,7 +269,7 @@ func (d *Daemon) Run() error {
 		d.closeLinks()
 		return nil
 	}
-	mdns := lan.MDNSInfo{DeviceID: d.selfID, Name: d.Name(), Type: proto.DeviceType(), Protocol: proto.ProtocolVersion, Port: d.lan.TCPPort()}
+	mdns := lan.MDNSInfo{DeviceID: d.selfID, Name: d.Name(), Type: proto.DeviceType(), Protocol: proto.ProtocolVersion, Port: d.lan.TCPPort(), Logf: d.logf}
 	if m, err := lan.StartMDNS(ctx, mdns, d.onMDNS); err != nil {
 		d.logf("mDNS off, UDP discovery only: %v", err)
 	} else {
@@ -310,6 +324,7 @@ func (d *Daemon) Run() error {
 	}
 
 	removeClipImages(d.clipDir)
+	go pruneIcons(iconDir(), iconMaxAge)
 	go d.clip.Watch(ctx, d.onLocalClipboard, d.onLocalImage)
 	go d.inputLoop(ctx)
 	go d.publishLoop(ctx)
@@ -370,6 +385,7 @@ func (d *Daemon) discoveryLoop(ctx context.Context) {
 		if k := addrKey(); k != last {
 			last = k
 			d.logf("network changed, broadcasting")
+			d.resetDials()
 			d.announce()
 			continue
 		}
@@ -453,6 +469,7 @@ func (d *Daemon) onMDNS(peer lan.MDNSPeer) {
 	}
 	dev.IP, dev.Port, dev.LastSeen = peer.IP, peer.Port, time.Now()
 	dev.mdnsSeen = time.Now()
+	dev.dialTries = 0
 	// Avahi can answer from its cache with an address that the device left.
 	// Dial the extra addresses too, because this dial blocks other dials to
 	// the device for 1 second.
@@ -465,13 +482,36 @@ func (d *Daemon) onMDNS(peer lan.MDNSPeer) {
 // the device again. The phone needs a moment to move to another network.
 const redialDelay = 2 * time.Second
 
+// fastDials is the number of dials to a paired device that is offline at
+// the normal interval of 30 seconds. After them, fluxd dials the device
+// every slowDial until it shows again or the network changes.
+const fastDials = 20
+
+// slowDial is the interval of the dials to a paired device that stays
+// offline.
+const slowDial = 2 * time.Minute
+
+// forgetAfter is the time after which fluxd removes a device that is not
+// paired, not connected, and not seen.
+const forgetAfter = 10 * time.Minute
+
+// resetDials gives each device the normal dial interval again.
+func (d *Daemon) resetDials() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, dev := range d.devices {
+		dev.dialTries = 0
+	}
+}
+
 // dialKnown connects to each device that is offline and has a known
 // address: paired devices, and devices that mDNS found in the last 10
 // minutes. A paired device can have a remote address and extra addresses,
 // for example a Tailscale name. dialKnown tries the last address first,
 // then the others. It also sends a unicast UDP identity from port 1716 to
 // the last address. A device that answers from its port 1716 passes the
-// firewall as a reply.
+// firewall as a reply. It also removes the devices that it no longer
+// needs.
 func (d *Daemon) dialKnown() {
 	type target struct {
 		ip    string
@@ -483,17 +523,31 @@ func (d *Daemon) dialKnown() {
 	var refresh []string
 	d.mu.Lock()
 	m := d.mdns
-	for _, dev := range d.devices {
-		// A paired device that is offline can have a new address. mDNS
-		// gives it, and onMDNS then dials it.
-		if dev.link == nil && dev.Paired {
+	now := time.Now()
+	for id, dev := range d.devices {
+		if dev.link != nil {
+			continue
+		}
+		if !dev.Paired && dev.pairState == "" && now.Sub(dev.LastSeen) > forgetAfter && now.Sub(dev.mdnsSeen) > forgetAfter {
+			delete(d.devices, id)
+			continue
+		}
+		if dev.Paired {
+			// A device that stays away gets fewer dials.
+			if dev.dialTries >= fastDials && now.Sub(dev.dialAt) < slowDial {
+				continue
+			}
+			dev.dialTries++
+			dev.dialAt = now
+			// A paired device that is offline can have a new address. mDNS
+			// gives it, and onMDNS then dials it.
 			refresh = append(refresh, dev.ID)
 		}
 		hosts := dev.dialHosts()
-		if dev.link != nil || len(hosts) == 0 {
+		if len(hosts) == 0 {
 			continue
 		}
-		if !dev.Paired && time.Since(dev.mdnsSeen) > 10*time.Minute {
+		if !dev.Paired && now.Sub(dev.mdnsSeen) > 10*time.Minute {
 			continue
 		}
 		targets = append(targets, target{dev.IP, hosts, dev.dialPort(), proto.Identity{DeviceID: dev.ID, DeviceName: dev.Name, ProtocolVersion: dev.Version}})
@@ -570,6 +624,7 @@ func (d *Daemon) onIdentity(id proto.Identity, ip string) {
 		dev.Port = id.TCPPort
 	}
 	dev.LastSeen = time.Now()
+	dev.dialTries = 0
 }
 
 // onLink takes over a new authenticated link.
@@ -589,6 +644,7 @@ func (d *Daemon) onLink(l *lan.Link) {
 		dev.Port = l.PeerPort
 	}
 	dev.LastSeen = time.Now()
+	dev.dialTries = 0
 	dev.Cert = l.Cert
 	_, trusted := d.trust.Get(dev.ID)
 	dev.Paired = trusted
@@ -654,6 +710,9 @@ func (d *Daemon) onPairedLink(dev *Device, l *lan.Link) {
 	if dev.supports(proto.TypeNotification) {
 		_ = l.Send(proto.New(proto.TypeNotificationRequest, map[string]any{"request": true}))
 	}
+	if dev.accepts(proto.TypeFluxDnd) {
+		d.wakeDnd()
+	}
 	if dev.accepts(proto.TypeFluxInput) {
 		d.sendInputState(l)
 	}
@@ -677,8 +736,10 @@ func (d *Daemon) markDirty() {
 	}
 }
 
-// publishLoop sends at most 1 state event every 100 ms.
+// publishLoop sends at most 1 state event every 100 ms. It sends no event
+// when no client listens or when the state did not change.
 func (d *Daemon) publishLoop(ctx context.Context) {
+	var last json.RawMessage
 	for {
 		select {
 		case <-ctx.Done():
@@ -686,13 +747,21 @@ func (d *Daemon) publishLoop(ctx context.Context) {
 		case <-d.dirty:
 		}
 		time.Sleep(100 * time.Millisecond)
-		snap := d.Snapshot()
 		d.mu.Lock()
 		subs := make([]func(string, any), 0, len(d.subs))
 		for _, s := range d.subs {
 			subs = append(subs, s)
 		}
 		d.mu.Unlock()
+		if len(subs) == 0 {
+			last = nil
+			continue
+		}
+		snap := d.Snapshot()
+		if bytes.Equal(snap, last) {
+			continue
+		}
+		last = snap
 		for _, s := range subs {
 			s("state", snap)
 		}

@@ -49,10 +49,18 @@ class Device(private val core: FluxCore, var identity: Identity) {
     var herdrOutput: HerdrOutput? = null
     /** The last reply to an agent from the agent screen, or null when none is open. */
     var herdrReply: HerdrReply? = null
+    /** The last new agent, new terminal, or close from this phone. */
+    var herdrAction: HerdrAction? = null
     val herdrTracker = HerdrTracker()
 
     /** True when the computer accepts remote input, or null before it tells. */
     var remoteInput: Boolean? = null
+
+    /** True when the computer shows its screen on this phone, or null before it tells. */
+    var remoteDesktop: Boolean? = null
+
+    /** The key bindings and workspaces of the computer, or null before the first answer. */
+    var shortcuts: ShortcutsState? = null
 
     val online: Boolean get() = link?.isOpen == true
     val paired: Boolean get() = pairState == PairState.Paired
@@ -101,8 +109,13 @@ class Device(private val core: FluxCore, var identity: Identity) {
             herdr = herdr,
             herdrOutput = herdrOutput,
             herdrReply = herdrReply,
+            herdrAction = herdrAction,
             inputSupported = Types.MOUSEPAD_REQUEST in identity.incoming,
             remoteInput = remoteInput,
+            desktopSupported = Types.FLUX_DESKTOP in identity.incoming,
+            remoteDesktop = remoteDesktop,
+            shortcutsSupported = Types.FLUX_SHORTCUTS in identity.incoming,
+            shortcuts = shortcuts,
         )
     }
 

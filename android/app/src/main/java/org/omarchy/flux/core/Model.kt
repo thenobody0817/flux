@@ -88,10 +88,20 @@ data class DeviceUi(
     val herdrOutput: HerdrOutput? = null,
     /** The last reply from the agent screen. */
     val herdrReply: HerdrReply? = null,
+    /** The last new agent, new terminal, or close from this phone. */
+    val herdrAction: HerdrAction? = null,
     /** True when the computer can take the touchpad and the keyboard of this phone. */
     val inputSupported: Boolean = false,
     /** True when remote input is on at the computer, or null before it tells. */
     val remoteInput: Boolean? = null,
+    /** True when the computer can stream its screen to this phone. */
+    val desktopSupported: Boolean = false,
+    /** True when the remote desktop is on at the computer, or null before it tells. */
+    val remoteDesktop: Boolean? = null,
+    /** True when the computer runs its Hyprland key bindings for this phone. */
+    val shortcutsSupported: Boolean = false,
+    /** The key bindings and workspaces of the computer, or null before the first answer. */
+    val shortcuts: ShortcutsState? = null,
 )
 
 /** A snapshot of the whole app for the UI. */
@@ -126,6 +136,8 @@ data class UiState(
     val ringingFrom: String? = null,
     val browse: BrowseState? = null,
     val listeningUdp: Boolean = true,
+    /** True while the phone looks for computers. See [FluxCore.scan]. */
+    val scanning: Boolean = false,
     /** False while the user has turned Flux off. */
     val enabled: Boolean = true,
     val theme: ThemeMode = ThemeMode.System,

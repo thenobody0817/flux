@@ -72,8 +72,17 @@ object Types {
     /** Flux extension: an image that one side copied, as the payload, with {"mime": "image/png"}. Both sides send it. */
     const val FLUX_CLIPBOARD_IMAGE = "flux.clipboard.image"
 
-    /** Flux extension: the computer tells whether it accepts remote input, {"enabled": bool}. */
+    /**
+     * Flux extension: the computer tells whether it accepts remote input and
+     * whether it shows its screen, {"enabled": bool, "desktop": bool}.
+     */
     const val FLUX_INPUT = "flux.input"
+
+    /** Flux extension: the computer streams its screen to this phone. */
+    const val FLUX_DESKTOP = "flux.desktop"
+
+    /** Flux extension: the computer sends its Hyprland key bindings and workspaces, and runs them for this phone. Both sides send it. */
+    const val FLUX_SHORTCUTS = "flux.shortcuts"
 }
 
 /** Packet types that the phone accepts. */
@@ -83,7 +92,7 @@ val INCOMING = listOf(
     Types.NOTIFICATION_ACTION, Types.FIND_MY_PHONE, Types.RUN_COMMAND, Types.MPRIS,
     Types.SFTP, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
-    Types.FLUX_THEME, Types.FLUX_HERDR, Types.FLUX_INPUT,
+    Types.FLUX_THEME, Types.FLUX_HERDR, Types.FLUX_INPUT, Types.FLUX_DESKTOP, Types.FLUX_SHORTCUTS,
 )
 
 /** Packet types that the phone sends. */
@@ -93,6 +102,7 @@ val OUTGOING = listOf(
     Types.MPRIS_REQUEST, Types.SFTP_REQUEST, Types.TELEPHONY, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
     Types.FLUX_THEME_REQUEST, Types.FLUX_HERDR, Types.FLUX_CLIPBOARD_IMAGE, Types.MOUSEPAD_REQUEST,
+    Types.FLUX_DESKTOP, Types.FLUX_SHORTCUTS,
 )
 
 /**

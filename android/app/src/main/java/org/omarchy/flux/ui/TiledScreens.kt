@@ -66,6 +66,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import org.omarchy.flux.core.CaptureKind
@@ -106,7 +109,7 @@ fun TiledDevicesScreen(
     var refreshing by remember { mutableStateOf(false) }
     LaunchedEffect(refreshing) {
         if (refreshing) {
-            FluxCore.rediscover()
+            FluxCore.scan()
             delay(1500)
             refreshing = false
         }
@@ -122,12 +125,12 @@ fun TiledDevicesScreen(
                 T("Flux", Modifier.weight(1f).padding(start = 2.dp), size = 22, weight = FontWeight.SemiBold, letterSpacing = -0.4f)
                 Row(
                     Modifier.height(32.dp).clip(RoundedCornerShape(8.dp)).background(Tn.tile)
-                        .clickable(onClickLabel = "Search again") { refreshing = true }.padding(horizontal = 12.dp),
+                        .clickable(enabled = !state.scanning, onClickLabel = "Scan again") { refreshing = true }.padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Sym(Ic.refresh, size = 16.dp, tint = Tn.sub)
-                    T(if (refreshing) "Searching…" else "Refresh", size = 12, color = Tn.sub)
+                    T(if (state.scanning) "Scanning…" else "Scan again", size = 12, color = Tn.sub)
                 }
                 AppMenu(state.theme)
             }
@@ -161,17 +164,24 @@ fun TiledDevicesScreen(
                     }
                 }
             }
+            // The phone scans once when the app opens. After the scan, a tap on the tile scans again.
             if (available.isEmpty()) {
                 Tile(
-                    Modifier.fillMaxWidth().padding(top = TileGap), onClick = { refreshing = true },
-                    accent = Tn.yellow, container = Color.Transparent,
+                    Modifier.fillMaxWidth().padding(top = TileGap), onClick = if (state.scanning) null else ({ refreshing = true }),
+                    accent = Tn.blue, container = Color.Transparent,
                     padding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Tn.yellow)
-                        TileLabel("Looking for computers", color = Tn.yellow)
+                        if (state.scanning) {
+                            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Tn.yellow)
+                            TileLabel("Looking for computers", color = Tn.yellow)
+                        } else {
+                            Sym(Ic.wifiFind, size = 16.dp, tint = Tn.sub)
+                            TileLabel(if (paired.isEmpty()) "No computers found" else "No other computers found", color = Tn.sub)
+                        }
                     }
                     T("Open Flux on the computer, and use the same Wi-Fi network as this phone.", size = 13, color = Tn.sub)
+                    if (!state.scanning) T("Scan again", Modifier.padding(top = 4.dp), size = 13, color = Tn.blue, weight = FontWeight.SemiBold)
                 }
             }
 
@@ -552,6 +562,25 @@ fun TiledHomeScreen(
                     Modifier.fillMaxWidth().height(TileUnit), on, trailing = if (d.remoteInput == true) null else "off",
                 )
             }
+            // The screen of the computer can show private content, so it also asks for the phone lock first.
+            if (d.desktopSupported) {
+                LineTile(
+                    Ic.desktop, "Remote desktop", Tn.blue,
+                    guarded {
+                        if (d.remoteDesktop == true) {
+                            ReplyLock.run(context, { onNavigate("desktop") }, "Show the computer screen", "show the computer screen") { FluxCore.toast(it) }
+                        } else {
+                            onNavigate("desktop")
+                        }
+                    },
+                    Modifier.fillMaxWidth().height(TileUnit), on,
+                    trailing = when {
+                        d.remoteDesktop != true -> "off"
+                        d.remoteInput != true -> "view only"
+                        else -> null
+                    },
+                )
+            }
         }
 
         SectionLabel("Sync")
@@ -672,16 +701,21 @@ fun TiledMediaScreen(d: DeviceUi, onBack: () -> Unit) {
     // The volume that the user drags to, and the time of the last volume sent.
     var volumeDrag by remember { mutableStateOf<Float?>(null) }
     var volumeSentAt by remember { mutableLongStateOf(0L) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(d.id) {
-        while (true) {
-            Plugins.requestPlayers(FluxCore, d.id)
-            delay(10_000)
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                Plugins.requestPlayers(FluxCore, d.id)
+                delay(10_000)
+            }
         }
     }
     LaunchedEffect(p?.playing) {
-        while (p?.playing == true) {
-            now = SystemClock.elapsedRealtime()
-            delay(500)
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (p?.playing == true) {
+                now = SystemClock.elapsedRealtime()
+                delay(500)
+            }
         }
     }
     val position = when {

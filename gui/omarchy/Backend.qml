@@ -33,6 +33,35 @@ Scope {
   property int nextId: 1
   property var pending: ({})
 
+  // The Socket of Quickshell 0.3 does not connect again after a failed
+  // attempt, so each attempt uses a new Socket.
+  property Socket sock: null
+
+  // The wait before the next connection attempt while fluxd is down. It
+  // starts at 2 seconds and doubles after each failed attempt, up to 60
+  // seconds.
+  readonly property int minRetryDelay: 2000
+  readonly property int maxRetryDelay: 60000
+  property int retryDelay: minRetryDelay
+
+  // Connects at once when the connection is down, and starts the wait again
+  // at 2 seconds. The panel calls this when it opens.
+  function retryNow() {
+    retryDelay = minRetryDelay
+    connectNow()
+  }
+
+  function connectNow() {
+    if (sock && sock.connected) return
+    if (sock) sock.destroy()
+    // The socket connects after sock is set, so its handlers know that it
+    // is the current socket.
+    sock = socketComponent.createObject(root)
+    sock.connected = true
+  }
+
+  // The handlers of the socket call this before connected changes, so read
+  // the socket itself.
   function call(method, params, cb) {
     if (!root.connected) {
       var offline = { code: "offline", message: "fluxd is not running" }
@@ -159,11 +188,19 @@ Scope {
     }
   }
 
+  Component.onCompleted: connectNow()
+
+  // A new interval starts the timer again, so retryNow() also cuts a long
+  // wait short.
   Timer {
-    interval: 2000
+    interval: root.retryDelay
     repeat: true
     running: !root.connected
-    onTriggered: root.reconnect()
+    onTriggered: {
+      root.attempted = true
+      root.retryDelay = Math.min(root.retryDelay * 2, root.maxRetryDelay)
+      root.reconnect()
+    }
   }
 
   Timer {

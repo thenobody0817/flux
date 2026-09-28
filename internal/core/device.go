@@ -35,6 +35,10 @@ type Device struct {
 
 	link     *lan.Link
 	mdnsSeen time.Time
+	// dialTries counts the dials since the device was last seen. dialAt is
+	// the time of the last dial.
+	dialTries int
+	dialAt    time.Time
 	// inputRefused is true after fluxd logged remote input that it
 	// ignored, so that it logs that once.
 	inputRefused bool
@@ -56,6 +60,11 @@ type Device struct {
 	sftpClient    *sftp.Client
 	sftpRoots     []BrowseRoot
 	theme         string
+
+	// sftpTimer closes the SFTP session after sftpIdle. sftpBusy counts the
+	// downloads that use the session.
+	sftpTimer *time.Timer
+	sftpBusy  int
 }
 
 // Battery is the battery state of a device.
@@ -144,6 +153,10 @@ func (dev *Device) sharesStorage() bool {
 }
 
 func (dev *Device) closeSftp() {
+	if dev.sftpTimer != nil {
+		dev.sftpTimer.Stop()
+		dev.sftpTimer = nil
+	}
 	if dev.sftpClient != nil {
 		dev.sftpClient.Close()
 		dev.sftpClient = nil

@@ -19,6 +19,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -50,12 +51,14 @@ class FluxService : Service() {
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
+            FluxCore.refreshWifi()
             FluxCore.rediscover()
             // A switch to 5G while a computer is unreachable can wake it.
             FluxCore.wakeAway()
         }
 
         override fun onLost(network: Network) {
+            FluxCore.refreshWifi()
             FluxCore.publish()
         }
     }
@@ -71,11 +74,42 @@ class FluxService : Service() {
     }
 
     private val dndReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = DndSync.onLocalChange(FluxCore)
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == NotificationManager.ACTION_NOTIFICATION_POLICY_ACCESS_GRANTED_CHANGED) FluxCore.refresh()
+            else DndSync.onLocalChange(FluxCore)
+        }
     }
 
     private var nsd: NsdManager? = null
-    private val nsdListener = object : NsdManager.DiscoveryListener {
+    private var discovery: NsdManager.DiscoveryListener? = null
+    private var scanEnd: Job? = null
+
+    /**
+     * Looks for computers for [SCAN_MS]. The phone sends its identity over UDP
+     * and browses mDNS once, so that the radio does not stay busy. A tap on
+     * Scan again starts a new scan.
+     */
+    private fun scan() {
+        if (scanEnd?.isActive == true) return
+        FluxCore.rediscover()
+        val listener = discoveryListener()
+        runCatching { nsd?.discoverServices(MDNS_TYPE, NsdManager.PROTOCOL_DNS_SD, listener) }
+            .onSuccess { discovery = listener }
+        FluxCore.setScanning(true)
+        scanEnd = scope.launch {
+            delay(SCAN_MS)
+            stopScan()
+        }
+    }
+
+    private fun stopScan() {
+        discovery?.let { runCatching { nsd?.stopServiceDiscovery(it) } }
+        discovery = null
+        FluxCore.setScanning(false)
+    }
+
+    /** Android does not accept one discovery listener for 2 scans, so each scan gets a new one. */
+    private fun discoveryListener() = object : NsdManager.DiscoveryListener {
         override fun onDiscoveryStarted(serviceType: String) = Unit
         override fun onDiscoveryStopped(serviceType: String) = Unit
         override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) = Unit
@@ -161,11 +195,12 @@ class FluxService : Service() {
         }
         getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(networkCallback)
         ContextCompat.registerReceiver(this, batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
-        // The system sends this broadcast only to receivers that register at run time.
+        // The system sends these broadcasts only to receivers that register at run time.
         DndSync.start(this)
-        ContextCompat.registerReceiver(
-            this, dndReceiver, IntentFilter(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
+        val dndChanges = IntentFilter(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED).apply {
+            addAction(NotificationManager.ACTION_NOTIFICATION_POLICY_ACCESS_GRANTED_CHANGED)
+        }
+        ContextCompat.registerReceiver(this, dndReceiver, dndChanges, ContextCompat.RECEIVER_NOT_EXPORTED)
         CaptureWatch.refresh(this)
         FluxCore.startNetwork()
         // A computer that is awake dials in within a few seconds. Wake anyone
@@ -176,7 +211,7 @@ class FluxService : Service() {
             FluxCore.wakeAway()
         }
         nsd = getSystemService(NsdManager::class.java)
-        runCatching { nsd?.discoverServices(MDNS_TYPE, NsdManager.PROTOCOL_DNS_SD, nsdListener) }
+        scan()
         scope.launch { FluxCore.listenPort.collect { announce() } }
         scope.launch {
             FluxCore.state.map { s -> s.devices.count { it.paired && it.online } }.distinctUntilChanged().collect { startInForeground(it) }
@@ -212,10 +247,14 @@ class FluxService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_REFRESH -> {
+                // The app came to the front. A permission or the network can have changed.
+                FluxCore.refreshAccess()
+                FluxCore.refreshWifi()
                 FluxCore.rediscover()
                 // The device name can change in the system settings.
                 announce()
             }
+            ACTION_SCAN -> scan()
         }
         return START_STICKY
     }
@@ -224,7 +263,7 @@ class FluxService : Service() {
         scope.cancel()
         calls?.stop()
         SmsSync.stop(this)
-        runCatching { nsd?.stopServiceDiscovery(nsdListener) }
+        stopScan()
         unannounce()
         runCatching { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(networkCallback) }
         runCatching { unregisterReceiver(batteryReceiver) }
@@ -272,6 +311,8 @@ class FluxService : Service() {
         const val ACTION_EYEC_DENY = "org.omarchy.flux.EYEC_DENY"
         const val ACTION_REFRESH = "org.omarchy.flux.REFRESH"
         const val ACTION_TURN_OFF = "org.omarchy.flux.TURN_OFF"
+        const val ACTION_SCAN = "org.omarchy.flux.SCAN"
+        const val SCAN_MS = 10_000L
         const val MDNS_TYPE = "_kdeconnect._udp"
 
         fun start(context: Context, action: String? = null) {

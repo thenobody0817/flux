@@ -26,6 +26,8 @@ flux-cli status
 
 Flux uses TLS with pinned device certificates after pairing.
 The desktop discovers phones through mDNS and opens the connections itself.
+The phone scans for computers for 10 seconds when the app opens.
+If the desktop is not in the list, tap **Scan again** on the phone.
 To use the phone away from the local network, see [Connect through Tailscale](tailscale.md).
 
 ## Files, clipboard, and links
@@ -243,12 +245,14 @@ herdr_control = true
 ```
 
 Reload with `systemctl --user reload fluxd`.
+The same key lets the phone start new agents and close agents.
 To talk to an agent, use the mic key next to **Send**. The phone changes your speech to text on the device.
-See [herdr agents](herdr.md) for the replies, dictation, the notifications, and the access rules.
+To also open herdr terminals and type commands in them, set `herdr_terminals = true`.
+See [herdr agents](herdr.md) for the replies, new agents, terminals, dictation, the notifications, and the access rules.
 
 ## Touchpad and keyboard
 
-The phone can be a touchpad and a keyboard for the computer.
+The phone or the Mac can be a touchpad and a keyboard for the computer.
 To allow it, set:
 
 ```toml
@@ -256,5 +260,40 @@ remote_input = true
 ```
 
 Reload with `systemctl --user reload fluxd`.
-Then select **Touchpad and keyboard** on the phone's device page.
+Then select **Touchpad and keyboard** on the phone's device page, or **Open Touchpad…** on the computer's page in Flux for macOS.
 See [Touchpad and keyboard](remote-input.md) for the gestures, the keys, and the slides.
+
+## Remote desktop
+
+The phone or the Mac can show the screen of the computer and control it.
+To allow it, set:
+
+```toml
+remote_desktop = true
+remote_input = true
+```
+
+Reload with `systemctl --user reload fluxd`.
+Then select **Remote desktop** on the phone's device page. The phone turns to landscape.
+In Flux for macOS, select **Open Remote Desktop…** on the computer's page.
+See [Remote desktop](remote-desktop.md) for the gestures, the monitors, and the stream.
+
+## Dictation in text fields
+
+Each text field of the app has a mic key.
+The phone changes your speech to text on the device.
+
+| Field | Where the words go |
+| --- | --- |
+| Reply to a herdr agent | At the cursor of the field |
+| Command of a herdr terminal | At the cursor of the field, without the capital and the period of a sentence |
+| Folder search when you start a herdr agent | In place of the search |
+| Text field of the touchpad and the remote desktop | The computer types them at its cursor |
+| Scanned text in the text mode of the camera | At the cursor of the field |
+| Search of **All shortcuts** in the Omarchy panel | In place of the search |
+| Search of the dictation language picker | In place of the search |
+
+Tap the mic key to start, and tap it again to stop.
+To talk only while you hold the key, press and hold it.
+All fields use the same dictation language.
+See [herdr agents](herdr.md#dictate-a-reply) for the panel, the languages, and the model downloads.

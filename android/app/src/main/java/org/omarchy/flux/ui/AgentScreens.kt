@@ -5,12 +5,12 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -36,14 +35,17 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -58,8 +60,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import org.omarchy.flux.core.AgentChoice
 import org.omarchy.flux.core.AgentStatus
 import org.omarchy.flux.core.DebugDemo
@@ -68,6 +72,7 @@ import org.omarchy.flux.core.FluxCore
 import org.omarchy.flux.core.HerdrAgent
 import org.omarchy.flux.core.HerdrOutput
 import org.omarchy.flux.core.HerdrReply
+import org.omarchy.flux.core.HerdrTerminal
 import org.omarchy.flux.core.HerdrSync
 import org.omarchy.flux.mic.MicSession
 import org.omarchy.flux.voice.Dictation
@@ -111,14 +116,23 @@ private fun StatusLine(s: AgentStatus) {
 
 /**
  * The herdr agents of a computer. The agents that need input come first.
- * A tap opens the recent output of the agent.
+ * A tap opens the recent output of the agent. When the computer allows
+ * terminals, they follow the agents. When the computer allows control,
+ * the add button opens a new agent or terminal.
  */
 @Composable
-fun TiledAgentsScreen(d: DeviceUi, onBack: () -> Unit, onOpen: (String) -> Unit) {
+fun TiledAgentsScreen(
+    d: DeviceUi,
+    onBack: () -> Unit,
+    onOpen: (String) -> Unit,
+    onOpenTerminal: (String) -> Unit = {},
+    onNew: () -> Unit = {},
+) {
     LaunchedEffect(d.id, d.online) { if (d.online) HerdrSync.request(FluxCore, d.id) }
     val herdr = d.herdr
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = TiledGutter)) {
         TiledTopBar("agents · ${d.name}", onBack) {
+            if (d.online && herdr?.running == true && herdr.control) SquareButton(Ic.add, "New agent or terminal", onNew)
             if (d.online) SquareButton(Ic.refresh, "Refresh", { HerdrSync.request(FluxCore, d.id) })
         }
         when {
@@ -139,14 +153,22 @@ fun TiledAgentsScreen(d: DeviceUi, onBack: () -> Unit, onOpen: (String) -> Unit)
                 "Start herdr on ${d.name}. Its coding agents show here.",
                 Modifier.padding(top = 48.dp),
             )
-            herdr.agents.isEmpty() -> EmptyState(
+            herdr.agents.isEmpty() && herdr.panes.isEmpty() -> EmptyState(
                 Ic.agent,
                 "No agents yet",
-                "Start a coding agent in a herdr pane on ${d.name}. It shows here.",
+                if (herdr.control) {
+                    "Select + to start an agent on ${d.name}, or start one in a herdr pane there."
+                } else {
+                    "Start a coding agent in a herdr pane on ${d.name}. It shows here."
+                },
                 Modifier.padding(top = 48.dp),
             )
             else -> Column(verticalArrangement = Arrangement.spacedBy(TileGap)) {
                 for (a in herdr.sorted) AgentTile(a) { onOpen(a.pane) }
+                if (herdr.panes.isNotEmpty()) {
+                    TileLabel("Terminals", Modifier.padding(start = 4.dp, top = 12.dp))
+                    for (t in herdr.panes) TerminalTile(t) { onOpenTerminal(t.pane) }
+                }
             }
         }
         Spacer(Modifier.height(96.dp))
@@ -178,37 +200,49 @@ private fun AgentTile(a: HerdrAgent, onClick: () -> Unit) {
     }
 }
 
+/** A herdr terminal: its folder, its workspace, and the terminal title. */
+@Composable
+private fun TerminalTile(t: HerdrTerminal, onClick: () -> Unit) {
+    Tile(Modifier.fillMaxWidth().height(72.dp), onClick, accent = Tn.green, padding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Sym(Ic.terminal, tint = Tn.green, size = 18.dp)
+            T(t.project.ifEmpty { t.pane }, Modifier.weight(1f), size = 14, weight = FontWeight.SemiBold, maxLines = 1)
+            if (t.workspace.isNotEmpty() && t.workspace != t.project) T(t.workspace, size = 10, color = Tn.dim, family = Mono, maxLines = 1)
+            T(t.pane, size = 10, color = Tn.dim, family = Mono, maxLines = 1)
+        }
+        T(t.title.ifEmpty { "shell" }, size = 11, color = Tn.sub, family = Mono, maxLines = 1)
+    }
+}
+
 // ───────────────────────── One agent ─────────────────────────
 
 /**
  * The recent output of one herdr agent in terminal colors, with the newest
  * lines at the bottom. The screen reads the output again when the status
- * changes, and every few seconds while the agent works. When the computer
- * allows it, the screen also sends keys and text to the agent.
+ * changes, and every few seconds while the agent works and the screen is
+ * visible. When the computer allows it, the screen also sends keys and text
+ * to the agent.
  */
 @Composable
 fun TiledAgentScreen(d: DeviceUi, pane: String, onBack: () -> Unit) {
     val agent = d.herdr?.agent(pane)
     val status = agent?.status
     val demo = DebugDemo.isDemo(d.id)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(d.id, pane, d.online, status) {
         if (!d.online || demo) return@LaunchedEffect
-        HerdrSync.read(FluxCore, d.id, pane)
-        while (status == AgentStatus.Working) {
-            delay(WORKING_REFRESH_MS)
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             HerdrSync.read(FluxCore, d.id, pane)
+            while (status == AgentStatus.Working) {
+                delay(WORKING_REFRESH_MS)
+                HerdrSync.read(FluxCore, d.id, pane)
+            }
         }
     }
     DisposableEffect(d.id, pane) { onDispose { HerdrSync.closeOutput(FluxCore, d.id, pane) } }
 
     val out = d.herdrOutput?.takeIf { it.pane == pane }
-    val scroll = rememberScrollState()
-    // New output scrolls to the newest lines.
-    LaunchedEffect(out?.text) {
-        if (out?.text.isNullOrEmpty()) return@LaunchedEffect
-        snapshotFlow { scroll.maxValue }.first { it > 0 && it < Int.MAX_VALUE }
-        scroll.scrollTo(scroll.maxValue)
-    }
+    val closer = rememberPaneCloser(d, pane, onBack)
     val label = if (agent != null) "${agent.agent} · ${agent.project.ifEmpty { pane }}" else pane
     Column(Modifier.fillMaxSize().imePadding().padding(horizontal = TiledGutter)) {
         TiledTopBar(label, onBack) {
@@ -229,9 +263,9 @@ fun TiledAgentScreen(d: DeviceUi, pane: String, onBack: () -> Unit) {
                 Modifier.padding(top = 48.dp),
             )
             else -> {
-                if (agent != null) AgentHeader(agent)
+                if (agent != null) AgentHeader(agent, closer.takeIf { d.herdr?.control == true })
                 Spacer(Modifier.height(TileGap))
-                AgentOutput(out, scroll, Modifier.weight(1f))
+                AgentOutput(out, Modifier.weight(1f))
                 if (agent != null) {
                     Spacer(Modifier.height(TileGap))
                     if (d.herdr?.control == true) {
@@ -247,23 +281,48 @@ fun TiledAgentScreen(d: DeviceUi, pane: String, onBack: () -> Unit) {
             }
         }
     }
+    closer.Dialog("Close ${agent?.agent ?: "the agent"}?", "herdr closes $pane on ${d.name}, and the agent in it stops.")
 }
 
 @Composable
-private fun AgentHeader(a: HerdrAgent) {
+private fun AgentHeader(a: HerdrAgent, closer: PaneCloser?) {
     Tile(Modifier.fillMaxWidth(), padding = PaddingValues(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             StatusLine(a.status)
             Spacer(Modifier.weight(1f))
             T(a.pane, size = 10, color = Tn.dim, family = Mono, maxLines = 1)
+            closer?.Button()
         }
         if (a.title.isNotEmpty()) T(a.title, size = 13, weight = FontWeight.SemiBold, maxLines = 1)
+        closer?.error?.let { T(it, size = 11, color = Tn.red) }
     }
 }
 
-/** The output of the agent as a small terminal: dark, mono, and in the colors of the agent. */
+/** How close to the end the output must be, in pixels, to follow new lines. */
+private const val FOLLOW_SLACK_PX = 48
+
+/**
+ * The output of an agent or a terminal as a small terminal: dark, mono,
+ * and in the colors of the pane. The view follows new lines at the end.
+ * When the user scrolls up to read older lines, the view stays there, and
+ * a button goes back to the newest lines.
+ */
 @Composable
-private fun AgentOutput(out: HerdrOutput?, scroll: ScrollState, modifier: Modifier) {
+internal fun AgentOutput(out: HerdrOutput?, modifier: Modifier) {
+    val scroll = rememberScrollState()
+    var follow by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+    // Only the end of a scroll changes follow. A scroll by the user to the end follows again.
+    LaunchedEffect(scroll) {
+        snapshotFlow { scroll.isScrollInProgress }.collect { moving ->
+            if (!moving) follow = scroll.value >= scroll.maxValue - FOLLOW_SLACK_PX
+        }
+    }
+    LaunchedEffect(out?.text) {
+        if (out?.text.isNullOrEmpty() || !follow) return@LaunchedEffect
+        snapshotFlow { scroll.maxValue }.first { it > 0 && it < Int.MAX_VALUE }
+        scroll.scrollTo(scroll.maxValue)
+    }
     Box(modifier.fillMaxWidth()) {
         when {
             out == null || (out.loading && out.lines.isEmpty()) -> Row(
@@ -273,25 +332,100 @@ private fun AgentOutput(out: HerdrOutput?, scroll: ScrollState, modifier: Modifi
                 T("Reading the output", color = Tn.sub)
             }
             out.error != null && out.lines.isEmpty() -> EmptyState(Ic.error, "No output", out.error, Modifier.padding(top = 32.dp))
-            else -> {
-                val colors = Tn
-                val text = remember(out.lines, colors) { termAnnotated(out.lines, colors) }
-                Box(Modifier.fillMaxSize().clip(TileShape).background(TermBg).border(1.dp, Tn.line, TileShape)) {
-                    SelectionContainer {
-                        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 12.dp, vertical = 10.dp)) {
-                            if (out.truncated) T("Older lines are cut.", Modifier.padding(bottom = 6.dp), size = 10, color = Tn.dim, family = Mono)
-                            out.error?.let { T(it, Modifier.padding(bottom = 6.dp), size = 11, color = Tn.red) }
-                            if (out.lines.isEmpty()) {
-                                T("No output yet.", size = 11, color = Tn.dim, family = Mono)
-                            } else {
-                                BasicText(text, style = TextStyle(color = Tn.text, fontFamily = Mono, fontSize = 11.5.sp, lineHeight = 16.sp))
-                            }
+            else -> BoxWithConstraints(Modifier.fillMaxSize().clip(TileShape).background(TermBg).border(1.dp, Tn.line, TileShape)) {
+                val width = maxWidth
+                SelectionContainer {
+                    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(vertical = 10.dp)) {
+                        val pad = Modifier.padding(horizontal = TermPad)
+                        if (out.truncated) T("Older lines are cut.", pad.padding(bottom = 6.dp), size = 10, color = Tn.dim, family = Mono)
+                        out.error?.let { T(it, pad.padding(bottom = 6.dp), size = 11, color = Tn.red) }
+                        if (out.lines.isEmpty()) {
+                            T("No output yet.", pad, size = 11, color = Tn.dim, family = Mono)
+                        } else {
+                            TermLines(out.lines, width)
                         }
+                    }
+                }
+                if (!follow && out.lines.isNotEmpty()) {
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).padding(10.dp).size(40.dp).clip(RoundedCornerShape(8.dp))
+                            .background(Tn.tileHi).border(1.dp, Tn.blue, RoundedCornerShape(8.dp))
+                            .clickable(onClickLabel = "Show the newest lines") {
+                                follow = true
+                                scope.launch { scroll.animateScrollTo(scroll.maxValue) }
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Sym(Ic.up, "Show the newest lines", Modifier.rotate(180f), tint = Tn.blue, size = 20.dp)
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * The close action of an agent or a terminal: a Close key, a confirmation
+ * dialog, and the phone lock. The screen goes back when the computer
+ * closed the pane. [error] is the last problem.
+ */
+internal class PaneCloser(
+    private val onAsk: () -> Unit,
+    private val dialog: @Composable (title: String, body: String) -> Unit,
+    val error: String?,
+) {
+    @Composable
+    fun Button() {
+        T(
+            "Close",
+            Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClickLabel = "Close the pane", onClick = onAsk)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            size = 12, color = Tn.red, weight = FontWeight.SemiBold,
+        )
+    }
+
+    @Composable
+    fun Dialog(title: String, body: String) = dialog(title, body)
+}
+
+@Composable
+internal fun rememberPaneCloser(d: DeviceUi, pane: String, onClosed: () -> Unit): PaneCloser {
+    val context = LocalContext.current
+    var asking by remember { mutableStateOf(false) }
+    var lockError by remember { mutableStateOf<String?>(null) }
+    // Only a close from this screen counts. Its sequence number is higher than the last action at the tap.
+    var after by rememberSaveable(d.id, pane) { mutableLongStateOf(Long.MAX_VALUE) }
+    val action = d.herdrAction?.takeIf { it.action == "close" && it.seq > after && it.pane == pane }
+    LaunchedEffect(action) {
+        if (action != null && !action.sending && action.error == null) {
+            HerdrSync.clearAction(FluxCore, d.id, action.seq)
+            onClosed()
+        }
+    }
+    val lastSeq = d.herdrAction?.seq ?: 0L
+    return PaneCloser(
+        onAsk = {
+            lockError = null
+            asking = true
+        },
+        dialog = { title, body ->
+            if (asking) {
+                ConfirmDialog(
+                    title, body, "Close",
+                    onCancel = { asking = false },
+                    onConfirm = {
+                        asking = false
+                        ReplyLock.run(context, {
+                            after = lastSeq
+                            HerdrSync.close(FluxCore, d.id, pane)
+                        }, title = "Close a pane", purpose = "close agents and terminals") { lockError = it }
+                    },
+                    destructive = true,
+                )
+            }
+        },
+        error = lockError ?: action?.error,
+    )
 }
 
 // ───────────────────────── Replies ─────────────────────────
@@ -480,7 +614,7 @@ private fun ChoiceTile(c: AgentChoice, onClick: () -> Unit) {
 
 /** A key of the key bar, with a mono label. [accent] marks the key that the dialog needs. */
 @Composable
-private fun KeyTile(label: String, description: String, modifier: Modifier, accent: Boolean = false, onClick: () -> Unit) {
+internal fun KeyTile(label: String, description: String, modifier: Modifier, accent: Boolean = false, onClick: () -> Unit) {
     Box(
         modifier.fillMaxHeight().clip(RoundedCornerShape(8.dp)).background(if (accent) Tn.tileHi else Tn.tile)
             .border(1.dp, if (accent) Tn.blue else Tn.line, RoundedCornerShape(8.dp))

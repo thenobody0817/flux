@@ -141,8 +141,10 @@ Key settings:
 | `pause_media_on_call` | Pause desktop media during a phone call |
 | `sync_dnd` | Sync Do Not Disturb |
 | `herdr` | Show the herdr agents of the computer on the phone |
-| `herdr_control` | Let the phone send keys and prompts to herdr agents. Off by default |
+| `herdr_control` | Let the phone send keys and prompts to herdr agents, start agents, and close them. Off by default |
+| `herdr_terminals` | Let the phone open herdr terminals and type commands in them. Needs `herdr_control`. Off by default |
 | `remote_input` | Let the phone move the pointer and type on the desktop. Off by default |
+| `remote_desktop` | Let the phone show the desktop screen. Off by default |
 | `gui` | Select the enabled plugin, otherwise the Qt app |
 | `approve_timeout` | Wait 20 seconds for fingerprint approval |
 
@@ -166,13 +168,17 @@ herdr agent list
 journalctl --user -u fluxd --no-pager | grep herdr
 ```
 
-The `herdr` field of the state has `enabled`, `running`, `control`, and `agents`.
+The `herdr` field of the state has `enabled`, `running`, `control`, `terminals`, `agents`, `panes`, `workspaces`, and `kinds`.
 `fluxd` and herdr must run as the same user.
 `HERDR_SOCKET_PATH` selects a herdr session other than the default.
 
-Replies from the phone need `herdr_control = true`.
+Replies, new agents, and closes from the phone need `herdr_control = true`.
 A reply can make an agent run commands on the computer.
 Do not turn on `herdr_control` unless the user asks for replies from the phone.
+
+Terminals from the phone need `herdr_terminals = true` as well.
+A terminal gives the phone a shell as the desktop user.
+Do not turn on `herdr_terminals` unless the user asks for terminals on the phone.
 
 ## Touchpad and keyboard
 
@@ -180,6 +186,21 @@ The phone moves the pointer and types on the desktop only with `remote_input = t
 The phone can then type in any window, such as a terminal.
 Do not turn on `remote_input` unless the user asks for it.
 Read `docs/remote-input.md` for the gestures, `wtype`, and the wire format.
+
+## Remote desktop
+
+The phone shows the desktop screen only with `remote_desktop = true`.
+The phone can then see each window. Its touches also need `remote_input = true`.
+Do not turn on `remote_desktop` unless the user asks for it.
+The stream needs `gpu-screen-recorder`.
+Read `docs/remote-desktop.md` for the gestures, the monitors, the lock screen, the Omarchy panel, and the stream format.
+The stream shows the lock screen. `fluxd` turns the displays on when they are off.
+The Omarchy panel runs Hyprland key bindings and workspace actions for the phone with `flux.shortcuts`. It needs `remote_input = true`.
+
+```sh
+flux-cli desktop
+flux-cli desktop stop
+```
 
 ## Fingerprint approval
 

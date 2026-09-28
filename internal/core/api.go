@@ -98,10 +98,7 @@ func (d *Daemon) Snapshot() json.RawMessage {
 		}
 		views = append(views, dev.view())
 	}
-	clip := d.clipboard
-	if clip == nil {
-		clip = []ClipEntry{}
-	}
+	clip := d.clipPreviewLocked()
 	transfers := d.transfers
 	if transfers == nil {
 		transfers = []*Transfer{}
@@ -128,12 +125,15 @@ func (d *Daemon) Snapshot() json.RawMessage {
 			"syncDnd":          d.cfg.SyncDnd,
 			"herdr":            d.cfg.Herdr,
 			"herdrControl":     d.cfg.HerdrControl,
+			"herdrTerminals":   d.cfg.HerdrTerminals,
 			"remoteInput":      d.cfg.RemoteInput,
+			"remoteDesktop":    d.cfg.RemoteDesktop,
 		},
-		"webcam": d.webcamViewLocked(),
-		"mic":    d.micViewLocked(),
-		"screen": d.screenViewLocked(),
-		"herdr":  d.herdrViewLocked(),
+		"webcam":  d.webcamViewLocked(),
+		"mic":     d.micViewLocked(),
+		"screen":  d.screenViewLocked(),
+		"desktop": d.desktopViewLocked(),
+		"herdr":   d.herdrViewLocked(),
 	})
 }
 
@@ -204,6 +204,8 @@ func (d *Daemon) Call(ctx context.Context, method string, raw json.RawMessage) (
 		return ok, d.StopMic()
 	case "screen.stop":
 		return ok, d.StopScreen()
+	case "desktop.stop":
+		return ok, d.StopDesktop()
 	case "approve.request":
 		return d.ApproveRequest(raw)
 	case "approve.enroll":
@@ -223,6 +225,9 @@ func (d *Daemon) Call(ctx context.Context, method string, raw json.RawMessage) (
 	case "eyec.trigger":
 		return d.EyecTrigger(raw)
 	case "clipboard.copy":
+		if p.ID != "" {
+			return ok, d.CopyClip(p.ID)
+		}
 		if p.Path != "" {
 			return ok, d.CopyClipImage(p.Path)
 		}
@@ -420,8 +425,12 @@ func (d *Daemon) setSetting(key string, value any) error {
 		d.cfg.Herdr = b
 	case key == "herdrControl" && isBool:
 		d.cfg.HerdrControl = b
+	case key == "herdrTerminals" && isBool:
+		d.cfg.HerdrTerminals = b
 	case key == "remoteInput" && isBool:
 		d.cfg.RemoteInput = b
+	case key == "remoteDesktop" && isBool:
+		d.cfg.RemoteDesktop = b
 	case key == "name" && isString:
 		d.cfg.Name = strings.TrimSpace(s)
 	case key == "downloadDir" && isString:
@@ -438,11 +447,14 @@ func (d *Daemon) setSetting(key string, value any) error {
 	if key == "name" {
 		d.announce()
 	}
-	if key == "herdr" || key == "herdrControl" {
+	if key == "herdr" || key == "herdrControl" || key == "herdrTerminals" {
 		d.herdrChanged()
 	}
-	if key == "remoteInput" {
+	if key == "remoteInput" || key == "remoteDesktop" {
 		d.inputChanged()
+	}
+	if key == "syncDnd" {
+		d.wakeDnd()
 	}
 	d.markDirty()
 	return nil
@@ -506,6 +518,7 @@ func (d *Daemon) Reload() error {
 	d.commandsChanged()
 	d.herdrChanged()
 	d.inputChanged()
+	d.wakeDnd()
 	return nil
 }
 

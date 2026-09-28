@@ -44,12 +44,24 @@ object FluxCore {
     private val devices = LinkedHashMap<String, Device>()
     private var backend: LanBackend? = null
     private var browse: BrowseState? = null
+    private var scanning = false
     private var ringingFrom: String? = null
     private var initialized = false
     private var localWakeMacs: List<String> = emptyList()
 
     /** True while an activity of the app is on screen. */
     @Volatile var foreground = false
+
+    // The flags of the state that need calls to the system. publish() runs
+    // for each packet, so it reads these copies. refreshWifi() and
+    // refreshAccess() read the flags again when they can change.
+    @Volatile private var onWifi = false
+    @Volatile private var dndAccess = false
+    @Volatile private var mediaAccess = false
+    @Volatile private var notificationAccess = false
+    @Volatile private var callAccess = false
+    @Volatile private var smsAccess = false
+    @Volatile private var smsSupported = false
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
@@ -79,6 +91,34 @@ object FluxCore {
             d.certificate = runCatching { t.cert() }.getOrNull()
             devices[t.id] = d
         }
+        smsSupported = SmsSync.supported(app)
+        refreshWifi()
+        refreshAccess()
+        publish()
+    }
+
+    /** Reads again whether the phone is on Wi-Fi. The network callback of the service calls it. */
+    fun refreshWifi() {
+        onWifi = Android.onWifi(app)
+    }
+
+    /**
+     * Reads the permissions and the other accesses of the phone again. Call
+     * it when they can change: when the app comes to the front, when the
+     * system reports a change, and before a switch publishes.
+     */
+    fun refreshAccess() {
+        dndAccess = DndSync.hasAccess(app)
+        mediaAccess = CaptureWatch.hasAccess(app)
+        notificationAccess = Android.hasNotificationAccess(app)
+        callAccess = Android.hasPhoneState(app)
+        smsAccess = SmsSync.hasAccess(app)
+    }
+
+    /** Reads all system flags again and publishes the state. */
+    fun refresh() {
+        refreshWifi()
+        refreshAccess()
         publish()
     }
 
@@ -137,6 +177,18 @@ object FluxCore {
         publish()
     }
 
+    /**
+     * Looks for computers on the network for a short time. The service sends
+     * the identity and browses mDNS, then stops. Computers still find the
+     * phone after the scan, through its mDNS announcement.
+     */
+    fun scan() = org.omarchy.flux.service.FluxService.start(app, org.omarchy.flux.service.FluxService.ACTION_SCAN)
+
+    fun setScanning(on: Boolean) {
+        synchronized(lock) { scanning = on }
+        publish()
+    }
+
     /** Sends the identity to one host, for example one that mDNS found. */
     fun announceTo(address: InetAddress) {
         backend?.announceTo(address)
@@ -179,6 +231,17 @@ object FluxCore {
         }
     }
 
+    /**
+     * Handles 1 packet on the read thread of the link. The output of a herdr
+     * pane can have 1000 lines, so its parse runs before the core lock.
+     */
+    private fun receive(d: Device, p: Packet) {
+        val output = if (p.type == Types.FLUX_HERDR) parseHerdrOutput(p.body) else null
+        locked {
+            if (output != null && d.paired) HerdrSync.onOutput(d, output) else dispatch(d, p)
+        }
+    }
+
     private fun detach(d: Device, link: Link) {
         locked {
             if (d.link !== link) return@locked
@@ -201,26 +264,27 @@ object FluxCore {
         val snapshot = synchronized(lock) {
             UiState(
                 phoneName = deviceName,
-                onWifi = Android.onWifi(app),
+                onWifi = onWifi,
                 devices = devices.values.map { it.snapshot() } + DebugDemo.devices(),
                 shareNotifications = settings.shareNotifications,
                 syncClipboard = settings.syncClipboard,
                 syncDnd = settings.syncDnd,
-                dndAccess = DndSync.hasAccess(app),
+                dndAccess = dndAccess,
                 sendScreenshots = settings.sendScreenshots,
                 sendPhotos = settings.sendPhotos,
-                mediaAccess = CaptureWatch.hasAccess(app),
-                notificationAccess = Android.hasNotificationAccess(app),
+                mediaAccess = mediaAccess,
+                notificationAccess = notificationAccess,
                 callAlerts = settings.callAlerts,
-                callAccess = Android.hasPhoneState(app),
+                callAccess = callAccess,
                 smsSync = settings.syncSms,
-                smsAccess = SmsSync.hasAccess(app),
-                smsSupported = SmsSync.supported(app),
+                smsAccess = smsAccess,
+                smsSupported = smsSupported,
                 agentInputAlerts = settings.agentInputAlerts,
                 agentDoneAlerts = settings.agentDoneAlerts,
                 ringingFrom = ringingFrom,
                 browse = browse,
                 listeningUdp = backend?.listeningUdp ?: true,
+                scanning = scanning,
                 enabled = settings.enabled,
                 theme = settings.theme,
             )
@@ -290,6 +354,7 @@ object FluxCore {
 
     fun setShareNotifications(on: Boolean) {
         settings.shareNotifications = on
+        refreshAccess()
         publish()
     }
 
@@ -326,16 +391,19 @@ object FluxCore {
 
     fun setCallAlerts(on: Boolean) {
         settings.callAlerts = on
+        refreshAccess()
         publish()
     }
 
     fun setSyncSms(on: Boolean) {
         settings.syncSms = on
+        refreshAccess()
         publish()
     }
 
     fun setSyncDnd(on: Boolean) {
         settings.syncDnd = on
+        refreshAccess()
         publish()
     }
 
@@ -357,6 +425,7 @@ object FluxCore {
         }
         CaptureWatch.setKind(app, kind, on)
         CaptureWatch.refresh(app)
+        refreshAccess()
         publish()
     }
 

@@ -15,10 +15,11 @@ A paired device can also connect through [Tailscale](tailscale.md) away from tha
 | Guide | Topics |
 | --- | --- |
 | [Installation](install.md) | Dependencies, Arch package, source install, user-only install, updates, and removal |
-| [Android](android.md) | APK installation, local builds, SDK setup, tests, and screenshots |
+| [Android](android.md) | Requirements, `adb`, APK installation, local builds, SDK setup, tests, and screenshots |
+| [Android setup and Play Protect](android-setup.md) | Play Protect blocks, installs with `adb`, restricted settings, the service, the network, and permissions |
 | [macOS](macos.md) | Mac app build, pairing, features, permissions, and local tests |
 | [CLI](cli.md) | Commands, device selection, JSON state, and notifications from scripts |
-| [Everyday use](features.md) | Pair, share, clipboard images, SMS, media, calls, Do Not Disturb, and automatic photo transfers |
+| [Everyday use](features.md) | Pair, share, clipboard images, SMS, media, calls, Do Not Disturb, automatic photo transfers, and dictation in text fields |
 | [Tailscale](tailscale.md) | Extra addresses, links away from the local network, other VPNs, and connection checks |
 | [Camera and streams](camera.md) | Scans, photos, webcam settings, microphone, and screen mirror |
 | [Configuration](configuration.md) | TOML settings, data paths, environment variables, and service control |
@@ -26,8 +27,9 @@ A paired device can also connect through [Tailscale](tailscale.md) away from tha
 | [Fingerprint approval](approvals.md) | Enrollment, PAM services, timeout, and removal |
 | [eyec](eyec.md) | Answer eyec prompts, chat, and run actions from the phone |
 | [Desktop shell](shell.md) | Carry an Omarchy Remote computer on the phone: terminals, apps, and browser tabs |
-| [herdr agents](herdr.md) | Agent status, colored output, notifications, and replies on the phone |
-| [Touchpad and keyboard](remote-input.md) | Remote input from the phone, gestures, typing, slides, and the wire format |
+| [herdr agents](herdr.md) | Agent status, colored output, notifications, replies, new agents, and terminals on the phone and the Mac |
+| [Touchpad and keyboard](remote-input.md) | Remote input from the phone or the Mac, gestures, typing, slides, and the wire format |
+| [Remote desktop](remote-desktop.md) | The computer screen on the phone or the Mac, touches, the mouse, the Omarchy panel, dictation, monitors, and the stream format |
 | [Troubleshooting](troubleshooting.md) | Service, discovery, plugin, media, Android, and build failures |
 
 ## Develop and automate

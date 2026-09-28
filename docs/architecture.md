@@ -49,6 +49,7 @@ Flux for Android and Flux for macOS are the supported device apps.
 | Browse the desktop from the phone | SSH inside a `flux.tunnel` |
 | Wake a sleeping computer | Phone sends a Wake-on-LAN magic packet to a configured address |
 | Follow or set the computer theme | Desktop sends `flux.theme`; the phone sends `flux.theme.request` |
+| Show the desktop on the phone | Phone listens for the stream, then desktop connects |
 
 The default Omarchy firewall permits mDNS.
 Flux needs no new inbound desktop firewall rule for these routes.

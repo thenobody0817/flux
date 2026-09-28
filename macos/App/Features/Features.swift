@@ -14,6 +14,9 @@ enum PluginRegistry {
             CaptureWatchPlugin(),
             MprisPlugin(),
             RunCommandPlugin(),
+            RemoteInputPlugin(),
+            DesktopPlugin(),
+            HerdrPlugin(),
             BrowsePlugin(),
             WebcamPlugin(),
             ScreenPlugin(),
@@ -39,6 +42,9 @@ struct FeatureSections: View {
             MicSection(device: device)
             ClipboardSection(device: device)
             CommandsSection(device: device)
+            InputSection(device: device)
+            DesktopSection(device: device)
+            AgentsSection(device: device)
             StreamSection(device: device)
             ApproveSection(device: device)
         }
@@ -84,6 +90,7 @@ struct FeatureSettings: View {
     var body: some View {
         Group {
             ShareSettings()
+            AgentSettings()
             DndSettings()
         }
     }
@@ -99,6 +106,9 @@ struct FeatureMenuItems: View {
             CameraMenuItem(device: device)
             MediaMenuItems(device: device)
             CommandsMenu(device: device)
+            InputMenuItem(device: device)
+            DesktopMenuItem(device: device)
+            AgentsMenuItem(device: device)
             BrowseMenuItem(device: device)
             StreamMenuItems(device: device)
             MicMenuItem(device: device)
@@ -113,6 +123,7 @@ enum FeatureHooks {
     static func didLaunch(model: AppModel) {
         SystemFeature.didLaunch(model: model)
         BrowseFeature.didLaunch()
+        AgentsFeature.didLaunch(model: model)
         ShareServices.install(model: model)
         ApprovePromptWindow.install(model: model)
     }

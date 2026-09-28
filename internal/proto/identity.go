@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Packet types that Flux uses.
@@ -50,7 +51,6 @@ const (
 	// TypeFluxDnd carries the Do Not Disturb state, {"on": bool}. Each side
 	// sends it after a local change. Both sides send it.
 	TypeFluxDnd = "flux.dnd"
-	// TypeFluxMic starts and stops the phone as a microphone. Both sides
 	// send it. The start body carries an optional "mode": "source" (default)
 	// exposes the phone as the Flux Microphone source; "speaker" plays the
 	// audio on the computer's default output instead.
@@ -85,9 +85,17 @@ const (
 	// while its clipboard sync is on.
 	TypeFluxClipboardImage = "flux.clipboard.image"
 	// TypeFluxInput tells the phone whether this computer accepts remote
-	// input, {"enabled": bool}. fluxd sends it after the link starts and
-	// after the setting changes.
+	// input and whether it shows its screen on the phone, {"enabled":
+	// bool, "desktop": bool}. fluxd sends it after the link starts and
+	// after a setting changes.
 	TypeFluxInput = "flux.input"
+	// TypeFluxDesktop starts and stops the stream of this screen to the
+	// phone. Both sides send it.
+	TypeFluxDesktop = "flux.desktop"
+	// TypeFluxShortcuts carries the Hyprland key bindings and workspaces to
+	// the phone, and runs a binding or a workspace action for it. Both
+	// sides send it.
+	TypeFluxShortcuts = "flux.shortcuts"
 )
 
 // Incoming lists the packet types that Flux accepts. The phone enables a
@@ -100,6 +108,7 @@ var Incoming = []string{
 	TypeFluxTunnel, TypeFluxWebcam, TypeFluxDnd, TypeFluxMic, TypeFluxScreen,
 	TypeFluxApprove, TypeFluxEyec, TypeFluxThemeRequest, TypeFluxHerdr, MicSpeakerCap,
 	TypeFluxClipboardImage, TypeMousepadRequest,
+	TypeFluxDesktop, TypeFluxShortcuts,
 }
 
 // Outgoing lists the packet types that Flux sends.
@@ -110,7 +119,7 @@ var Outgoing = []string{
 	TypeSftpRequest, TypeSmsRequest, TypeSmsConversations,
 	TypeSmsConversation, TypeSftp, TypeFluxWebcam, TypeFluxDnd,
 	TypeFluxMic, TypeFluxScreen, TypeFluxApprove, TypeFluxEyec, TypeFluxTheme, TypeFluxHerdr, MicSpeakerCap,
-	TypeFluxClipboardImage, TypeFluxInput,
+	TypeFluxClipboardImage, TypeFluxInput, TypeFluxDesktop, TypeFluxShortcuts,
 }
 
 // Identity is the body of a kdeconnect.identity packet.
@@ -202,8 +211,12 @@ func CleanName(name string) string {
 }
 
 // DeviceType returns "laptop" when the machine has a battery and "desktop"
-// when it does not.
-func DeviceType() string {
+// when it does not. It reads sysfs on the first call only.
+func DeviceType() string { return deviceType() }
+
+var deviceType = sync.OnceValue(readDeviceType)
+
+func readDeviceType() string {
 	if b, err := os.ReadFile("/sys/class/dmi/id/chassis_type"); err == nil {
 		switch strings.TrimSpace(string(b)) {
 		case "8", "9", "10", "11", "14", "30", "31", "32":

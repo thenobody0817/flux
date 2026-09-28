@@ -16,7 +16,9 @@ The macOS app requires macOS 14 or later.
 | Desktop services | D-Bus, systemd user services, Avahi, and PipeWire |
 | Clipboard | `wl-clipboard` |
 | Phone keyboard | `wtype`, which Omarchy installs |
+| Remote desktop | `gpu-screen-recorder`, which Omarchy installs |
 | Icons | A Nerd Font that provides `ttf-font-nerd` |
+| Android install with `adb` | `android-tools`, as in [Android requirements](android.md#requirements) |
 | Android build | JDK 21, SDK platform 36, and Build Tools 36.0.0 |
 | macOS build | Xcode and XcodeGen on macOS 14 or later |
 
