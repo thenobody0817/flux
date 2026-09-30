@@ -157,6 +157,7 @@ make build
 | Fingerprint approval | `internal/approve/`, `cmd/flux-approve/`, Android `core/Approve*` |
 | eyec prompts | `internal/core/eyec.go`, Android `core/Eyec.kt`, `docs/eyec.md` |
 | herdr agents | `internal/herdr/`, `internal/core/herdr.go`, Android `core/Herdr.kt` |
+| OpenChamber sessions | `internal/openchamber/`, `internal/core/openchamber.go`, Android `core/OpenChamber.kt` |
 | Package and system install | `dist/`, `Makefile` |
 
 Keep network state in `fluxd`.

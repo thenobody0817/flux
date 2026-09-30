@@ -160,10 +160,10 @@ object Android {
             description = "Asks you to allow or deny an eyec action on a computer"
         })
         nm.createNotificationChannel(NotificationChannel(CHANNEL_AGENT_INPUT, "Agents that need input", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "A coding agent in herdr on a computer waits for an approval or an answer"
+            description = "A coding agent in herdr or an OpenChamber session on a computer waits for an approval or an answer"
         })
         nm.createNotificationChannel(NotificationChannel(CHANNEL_AGENT_DONE, "Agents that finish", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "A coding agent in herdr on a computer finished its work"
+            description = "A coding agent in herdr or an OpenChamber session on a computer finished its work"
         })
     }
 
@@ -232,13 +232,36 @@ object Android {
 
     private fun agentId(deviceId: String, pane: String) = "$deviceId|$pane".hashCode()
 
+    /** Builds and posts one agent or session notification. */
+    @Suppress("MissingPermission")
+    private fun showAgentNotification(
+        context: Context,
+        channel: String,
+        id: Int,
+        title: String,
+        computer: String,
+        text: String,
+        intent: Intent,
+        blocked: Boolean,
+    ) {
+        if (!canNotify(context)) return
+        val pi = PendingIntent.getActivity(context, id, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val b = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_stat_flux)
+            .setContentTitle(title)
+            .setSubText(computer)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .setCategory(if (blocked) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_STATUS)
+        if (text.isNotEmpty()) b.setContentText(text)
+        NotificationManagerCompat.from(context).notify(TAG_AGENT, id, b.build())
+    }
+
     /**
      * Shows that a herdr agent needs input or finished. Each pane has 1
      * notification, and a tap opens the screen of the agent.
      */
-    @Suppress("MissingPermission")
     fun showAgent(context: Context, deviceId: String, computer: String, agent: HerdrAgent) {
-        if (!canNotify(context)) return
         val id = agentId(deviceId, agent.pane)
         val blocked = agent.status == AgentStatus.Blocked
         val where = agent.project.ifEmpty { agent.workspace }.ifEmpty { agent.pane }
@@ -246,20 +269,39 @@ object Android {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(MainActivity.EXTRA_DEVICE, deviceId)
             .putExtra(MainActivity.EXTRA_PANE, agent.pane)
-        val pi = PendingIntent.getActivity(context, id, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val b = NotificationCompat.Builder(context, if (blocked) CHANNEL_AGENT_INPUT else CHANNEL_AGENT_DONE)
-            .setSmallIcon(R.drawable.ic_stat_flux)
-            .setContentTitle(if (blocked) "${agent.agent} in $where needs input" else "${agent.agent} in $where finished")
-            .setSubText(computer)
-            .setContentIntent(pi)
-            .setAutoCancel(true)
-            .setCategory(if (blocked) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_STATUS)
-        if (agent.title.isNotEmpty()) b.setContentText(agent.title)
-        NotificationManagerCompat.from(context).notify(TAG_AGENT, id, b.build())
+        showAgentNotification(
+            context, if (blocked) CHANNEL_AGENT_INPUT else CHANNEL_AGENT_DONE, id,
+            if (blocked) "${agent.agent} in $where needs input" else "${agent.agent} in $where finished",
+            computer, agent.title, open, blocked,
+        )
     }
 
     fun cancelAgent(context: Context, deviceId: String, pane: String) {
         NotificationManagerCompat.from(context).cancel(TAG_AGENT, agentId(deviceId, pane))
+    }
+
+    /**
+     * Shows that an OpenChamber session needs input or finished. Each
+     * session has 1 notification, and a tap opens the screen of the session.
+     * The key is namespaced, so it cannot collide with a herdr pane.
+     */
+    fun showSession(context: Context, deviceId: String, computer: String, session: OpenChamberSession) {
+        val id = agentId(deviceId, "oc|${session.id}")
+        val blocked = session.status == AgentStatus.Blocked
+        val where = session.project.ifEmpty { "OpenChamber" }
+        val open = Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(MainActivity.EXTRA_DEVICE, deviceId)
+            .putExtra(MainActivity.EXTRA_SESSION, session.id)
+        showAgentNotification(
+            context, if (blocked) CHANNEL_AGENT_INPUT else CHANNEL_AGENT_DONE, id,
+            if (blocked) "${session.agent} in $where needs input" else "${session.agent} in $where finished",
+            computer, session.title, open, blocked,
+        )
+    }
+
+    fun cancelSession(context: Context, deviceId: String, session: String) {
+        NotificationManagerCompat.from(context).cancel(TAG_AGENT, agentId(deviceId, "oc|$session"))
     }
 
     /** True when the phone lets Flux read the call state. */

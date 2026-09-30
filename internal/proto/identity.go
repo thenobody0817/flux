@@ -79,6 +79,11 @@ const (
 	// and the requests of the phone for the agent list and recent output.
 	// Both sides send it. docs/herdr.md describes it.
 	TypeFluxHerdr = "flux.herdr"
+	// TypeFluxOpenChamber carries the OpenChamber sessions of the computer
+	// to the phone, and the requests of the phone for the session list,
+	// their messages, and their answers. Both sides send it.
+	// docs/openchamber.md describes it.
+	TypeFluxOpenChamber = "flux.openchamber"
 	// TypeFluxClipboardImage carries an image that one side copied. The
 	// payload is the image, and the body names its MIME type, {"mime":
 	// "image/png"}. Both sides send it. A phone lists it as incoming only
@@ -107,6 +112,7 @@ var Incoming = []string{
 	TypeSmsMessages, TypeConnectivity, TypeTelephony,
 	TypeFluxTunnel, TypeFluxWebcam, TypeFluxDnd, TypeFluxMic, TypeFluxScreen,
 	TypeFluxApprove, TypeFluxEyec, TypeFluxThemeRequest, TypeFluxHerdr, MicSpeakerCap,
+	TypeFluxOpenChamber,
 	TypeFluxClipboardImage, TypeMousepadRequest,
 	TypeFluxDesktop, TypeFluxShortcuts,
 }
@@ -119,6 +125,7 @@ var Outgoing = []string{
 	TypeSftpRequest, TypeSmsRequest, TypeSmsConversations,
 	TypeSmsConversation, TypeSftp, TypeFluxWebcam, TypeFluxDnd,
 	TypeFluxMic, TypeFluxScreen, TypeFluxApprove, TypeFluxEyec, TypeFluxTheme, TypeFluxHerdr, MicSpeakerCap,
+	TypeFluxOpenChamber,
 	TypeFluxClipboardImage, TypeFluxInput, TypeFluxDesktop, TypeFluxShortcuts,
 }
 

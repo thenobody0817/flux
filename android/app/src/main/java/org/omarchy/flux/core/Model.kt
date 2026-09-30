@@ -90,6 +90,16 @@ data class DeviceUi(
     val herdrReply: HerdrReply? = null,
     /** The last new agent, new terminal, or close from this phone. */
     val herdrAction: HerdrAction? = null,
+    /** True when the computer can send its OpenChamber sessions. */
+    val openChamberSupported: Boolean = false,
+    /** The OpenChamber sessions, or null before the first session list. */
+    val openChamber: OpenChamberState? = null,
+    /** The messages of the session on the session screen. */
+    val openChamberOutput: OpenChamberOutput? = null,
+    /** The last reply from the session screen. */
+    val openChamberReply: OpenChamberReply? = null,
+    /** The last new session or close from this phone. */
+    val openChamberAction: OpenChamberAction? = null,
     /** True when the computer can take the touchpad and the keyboard of this phone. */
     val inputSupported: Boolean = false,
     /** True when remote input is on at the computer, or null before it tells. */
@@ -133,6 +143,8 @@ data class UiState(
     val agentInputAlerts: Boolean = true,
     /** Notify when a herdr agent on a computer finishes. */
     val agentDoneAlerts: Boolean = true,
+    /** Draw the messages of an OpenChamber session as rich cards instead of plain lines. */
+    val openChamberRich: Boolean = true,
     val ringingFrom: String? = null,
     val browse: BrowseState? = null,
     val listeningUdp: Boolean = true,

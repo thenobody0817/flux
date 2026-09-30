@@ -49,6 +49,9 @@ class MainActivity : ComponentActivity() {
     /** The device ID and the pane of the agent that a notification opens. */
     val openAgent = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, String>?>(null)
 
+    /** The device ID and the session of the session that a notification opens. */
+    val openSession = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, String>?>(null)
+
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,6 +71,7 @@ class MainActivity : ComponentActivity() {
         }
         debugShowWhenLocked(intent)
         takeOpenAgent(intent)
+        takeOpenSession(intent)
         // The start animation plays when the launcher starts the app, not after a recreation or a notification tap.
         val splash = savedInstanceState == null && intent?.hasCategory(android.content.Intent.CATEGORY_LAUNCHER) == true
         setContent { TiledTheme { FluxRoot(this, splash) } }
@@ -77,6 +81,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         debugShowWhenLocked(intent)
         takeOpenAgent(intent)
+        takeOpenSession(intent)
     }
 
     /** Reads the agent that a notification opens. The extras go, so that a new activity does not open it again. */
@@ -88,12 +93,24 @@ class MainActivity : ComponentActivity() {
         openAgent.value = device to pane
     }
 
+    /** Reads the OpenChamber session that a notification opens. */
+    private fun takeOpenSession(intent: android.content.Intent?) {
+        val device = intent?.getStringExtra(EXTRA_DEVICE) ?: return
+        val session = intent.getStringExtra(EXTRA_SESSION) ?: return
+        intent.removeExtra(EXTRA_DEVICE)
+        intent.removeExtra(EXTRA_SESSION)
+        openSession.value = device to session
+    }
+
     companion object {
         /** The device ID of the agent that a notification opens. */
         const val EXTRA_DEVICE = "flux.open.device"
 
         /** The herdr pane of the agent that a notification opens. */
         const val EXTRA_PANE = "flux.open.pane"
+
+        /** The OpenChamber session of the session that a notification opens. */
+        const val EXTRA_SESSION = "flux.open.session"
     }
 
     /**
@@ -141,6 +158,12 @@ private const val TERMINAL_PAGE = "terminal:"
 
 /** The page that starts a herdr agent or opens a terminal. */
 private const val NEW_PANE_PAGE = "newpane"
+
+/** The page prefix of the screen of one OpenChamber session. The session ID follows it. */
+private const val SESSION_PAGE = "session:"
+
+/** The page that starts an OpenChamber session. */
+private const val NEW_SESSION_PAGE = "newsession"
 
 /** One entry of the screen stack. [page] is empty for the device home screen. */
 private data class Route(val deviceId: String? = null, val page: String = "")
@@ -228,6 +251,15 @@ fun FluxRoot(activity: MainActivity, splash: Boolean = false) {
         activity.openAgent.value = null
     }
 
+    // A tap on a session notification opens the screen of the session.
+    val openSession by activity.openSession.collectAsStateWithLifecycle()
+    LaunchedEffect(openSession, state.devices.size) {
+        val (id, session) = openSession ?: return@LaunchedEffect
+        if (state.devices.none { it.id == id && it.paired }) return@LaunchedEffect
+        stack = listOf(Route(), Route(id), Route(id, "sessions"), Route(id, "$SESSION_PAGE$session"))
+        activity.openSession.value = null
+    }
+
     fun push(r: Route) { stack = stack + r }
     fun pop() { if (stack.size > 1) stack = stack.dropLast(1) }
     BackHandler(enabled = stack.size > 1) { pop() }
@@ -262,6 +294,16 @@ fun FluxRoot(activity: MainActivity, splash: Boolean = false) {
                 route.page == NEW_PANE_PAGE -> TiledNewPaneScreen(device, ::pop) { what, pane ->
                     val page = if (what == "terminal") "$TERMINAL_PAGE$pane" else "$AGENT_PAGE$pane"
                     stack = stack.dropLast(1) + Route(device.id, page)
+                }
+                route.page == "sessions" -> TiledSessionsScreen(
+                    device, ::pop,
+                    onOpen = { session -> push(Route(device.id, "$SESSION_PAGE$session")) },
+                    onNew = { push(Route(device.id, NEW_SESSION_PAGE)) },
+                )
+                route.page.startsWith(SESSION_PAGE) -> key(route.page) { TiledSessionScreen(device, route.page.removePrefix(SESSION_PAGE), ::pop) }
+                // The new session replaces the new session page, so Back goes to the session list.
+                route.page == NEW_SESSION_PAGE -> TiledNewSessionScreen(device, ::pop) { session ->
+                    stack = stack.dropLast(1) + Route(device.id, "$SESSION_PAGE$session")
                 }
                 route.page == "browse" -> BrowseScreen(device, state.browse, ::pop)
                 route.page == "touchpad" -> TouchpadScreen(device, ::pop)

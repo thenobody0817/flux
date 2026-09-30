@@ -53,6 +53,16 @@ class Device(private val core: FluxCore, var identity: Identity) {
     var herdrAction: HerdrAction? = null
     val herdrTracker = HerdrTracker()
 
+    /** The OpenChamber sessions of the computer, or null before the first session list. */
+    var openChamber: OpenChamberState? = null
+    /** The messages of the session on the session screen, or null when none is open. */
+    var openChamberOutput: OpenChamberOutput? = null
+    /** The last reply to a session from the session screen, or null when none is open. */
+    var openChamberReply: OpenChamberReply? = null
+    /** The last new session or close from this phone. */
+    var openChamberAction: OpenChamberAction? = null
+    val openChamberTracker = OpenChamberTracker()
+
     /** True when the computer accepts remote input, or null before it tells. */
     var remoteInput: Boolean? = null
 
@@ -110,6 +120,11 @@ class Device(private val core: FluxCore, var identity: Identity) {
             herdrOutput = herdrOutput,
             herdrReply = herdrReply,
             herdrAction = herdrAction,
+            openChamberSupported = Types.FLUX_OPENCHAMBER in identity.incoming,
+            openChamber = openChamber,
+            openChamberOutput = openChamberOutput,
+            openChamberReply = openChamberReply,
+            openChamberAction = openChamberAction,
             inputSupported = Types.MOUSEPAD_REQUEST in identity.incoming,
             remoteInput = remoteInput,
             desktopSupported = Types.FLUX_DESKTOP in identity.incoming,

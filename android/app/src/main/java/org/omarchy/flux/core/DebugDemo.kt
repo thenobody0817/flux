@@ -50,6 +50,7 @@ object DebugDemo {
                 ),
                 commandsLoaded = true,
                 herdrSupported = true,
+                openChamberSupported = true,
                 inputSupported = true,
                 remoteInput = true,
                 desktopSupported = true,
@@ -80,6 +81,41 @@ object DebugDemo {
                     pane = "w2:p1",
                     loading = false,
                     lines = termLines(demoOutput),
+                ),
+                openChamber = OpenChamberState(
+                    enabled = true,
+                    running = true,
+                    control = true,
+                    sessions = listOf(
+                        OpenChamberSession("ses_a", "Refactor the sync loop", "build", AgentStatus.Working, "flux", "deepseek-flash"),
+                        OpenChamberSession("ses_b", "Run the database migration", "plan", AgentStatus.Blocked, "billing", "kimi-k2.7-code", waiting = "form"),
+                        OpenChamberSession("ses_c", "Fix the flaky login test", "build", AgentStatus.Idle, "web", "big-pickle"),
+                    ),
+                    kinds = listOf(OpenChamberKind("build", "Build"), OpenChamberKind("plan", "Plan")),
+                    dirs = listOf("~", "~/Code/flux", "~/Code/billing", "~/Code/web"),
+                ),
+                openChamberOutput = OpenChamberOutput(
+                    session = "ses_b",
+                    loading = false,
+                    rich = true,
+                    entries = listOf(
+                        Entry.User("Run the database migration and check the schema."),
+                        Entry.Assistant("plan (kimi-k2.7-code)"),
+                        Entry.Text("The migration adds a nullable column, so it is safe to run while the app is up."),
+                        Entry.Reasoning("Check the lock level before the table rewrite."),
+                        Entry.Tool("shell", "completed", "bin/rails db:migrate", "== 20260930090000 AddArchivedAt: migrated"),
+                        Entry.Tool("read", "completed", "db/schema.rb", "t.datetime \"archived_at\""),
+                    ),
+                    pending = listOf(
+                        Pending.Form(
+                            "frm_demo", "Run it on production too?",
+                            listOf(
+                                FormField(
+                                    "choice", "string", "Pick one", listOf(FormOption("1", "Yes, production now"), FormOption("2", "Staging first")), required = true,
+                                ),
+                            ),
+                        ),
+                    ),
                 ),
             ),
             device(OFFLINE, "omarchy-desk", "desktop", "192.168.2.40", paired = true, online = false).copy(

@@ -26,6 +26,7 @@ object Plugins {
     fun onConnected(core: FluxCore, d: Device) {
         sendBattery(core, d)
         HerdrSync.onConnected(d)
+        OpenChamberSync.onConnected(d)
         // New images that no computer took yet go out now.
         CaptureWatch.poke()
         if (core.foreground && core.settings.syncClipboard) {
@@ -82,6 +83,7 @@ object Plugins {
             Types.FLUX_EYEC -> Eyec.onPacket(core, d, p)
             Types.FLUX_THEME -> ThemeSync.onPacket(core, p)
             Types.FLUX_HERDR -> HerdrSync.onPacket(core, d, p)
+            Types.FLUX_OPENCHAMBER -> OpenChamberSync.onPacket(core, d, p)
             Types.FLUX_CLIPBOARD_IMAGE -> ClipImage.receive(core, d, p)
             Types.FLUX_INPUT -> {
                 d.remoteInput = p.bool("enabled")

@@ -26,6 +26,7 @@ https://github.com/user-attachments/assets/4b8445fe-6734-4100-b200-92f57e1b353a
 | Approve sudo with the phone's fingerprint sensor | [Fingerprint approval](docs/approvals.md) |
 | Reach your phone away from home through Tailscale | [Connect through Tailscale](docs/tailscale.md) |
 | See herdr coding agents on the phone or the Mac, read their output, and answer them | [herdr agents](docs/herdr.md) |
+| See and answer OpenChamber sessions on the phone | [OpenChamber sessions](docs/openchamber.md) |
 
 Flux for Android requires Android 10 or later.
 Flux for Android is the supported phone app.

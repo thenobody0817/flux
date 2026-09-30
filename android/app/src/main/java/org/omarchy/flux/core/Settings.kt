@@ -58,6 +58,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("agentDoneAlerts", true)
         set(v) = prefs.edit().putBoolean("agentDoneAlerts", v).apply()
 
+    /** Draws the messages of an OpenChamber session as rich cards instead of plain lines. */
+    var openChamberRich: Boolean
+        get() = prefs.getBoolean("openChamberRich", true)
+        set(v) = prefs.edit().putBoolean("openChamberRich", v).apply()
+
     /** Sends each new screenshot to the computers. */
     var sendScreenshots: Boolean
         get() = prefs.getBoolean("sendScreenshots", false)

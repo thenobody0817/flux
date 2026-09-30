@@ -167,6 +167,16 @@ journalctl --user -u fluxd --no-pager | grep herdr
 `fluxd` and herdr must run as the same user.
 See [herdr agents](herdr.md#troubleshoot) for the socket path and the phone states.
 
+## OpenChamber sessions do not show
+
+```sh
+flux-cli doctor
+journalctl --user -u fluxd --no-pager | grep openchamber
+```
+
+`fluxd` and OpenChamber must run as the same user.
+See [OpenChamber sessions](openchamber.md#troubleshoot) for the port and the phone states.
+
 ## Android build or install fails
 
 Check the Java and Gradle versions from `android/`:

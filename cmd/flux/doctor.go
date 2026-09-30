@@ -12,6 +12,7 @@ import (
 
 	"flux/internal/config"
 	"flux/internal/herdr"
+	"flux/internal/openchamber"
 	"golang.org/x/sys/unix"
 )
 
@@ -133,6 +134,30 @@ func doctor() {
 		} else {
 			check(pong.Protocol >= herdr.MinProtocol, fmt.Sprintf("herdr %s runs, so the phone can show its agents", pong.Version),
 				fmt.Sprintf("herdr %s uses API protocol %d, and Flux needs %d or newer. Run: herdr update", pong.Version, pong.Protocol, herdr.MinProtocol))
+		}
+	}
+
+	// OpenChamber is optional. When it runs, the phone shows its sessions.
+	if port := openchamber.Port(); port != 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		client := openchamber.New()
+		health, oerr := client.Health(ctx)
+		var authErr error
+		if oerr == nil && health.Compatibility.APIVersion >= openchamber.MinAPIVersion {
+			// The session list needs the login of a local client.
+			_, authErr = client.Sessions(ctx, nil)
+		}
+		cancel()
+		switch {
+		case oerr != nil:
+			fmt.Println("- OpenChamber does not run. Start OpenChamber to show its sessions on the phone")
+		case authErr != nil:
+			check(false, "", "fluxd cannot read the sessions of OpenChamber ("+authErr.Error()+"). Restart OpenChamber on this computer")
+		case health.Compatibility.APIVersion < openchamber.MinAPIVersion:
+			check(false, "", fmt.Sprintf("OpenChamber %s uses API version %d, and Flux needs %d or newer. Update OpenChamber",
+				health.Version, health.Compatibility.APIVersion, openchamber.MinAPIVersion))
+		default:
+			check(true, fmt.Sprintf("OpenChamber %s runs, so the phone can show its sessions", health.Version), "")
 		}
 	}
 

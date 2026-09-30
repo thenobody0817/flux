@@ -50,6 +50,13 @@ type Config struct {
 	// type commands in them. It is off by default, because it gives the
 	// phone a shell. It needs HerdrControl.
 	HerdrTerminals bool `toml:"herdr_terminals"`
+	// OpenChamber shows the OpenChamber sessions of this computer on the
+	// phone.
+	OpenChamber bool `toml:"openchamber"`
+	// OpenChamberControl lets the phone send prompts to the OpenChamber
+	// sessions, answer their questions, stop them, start them, and close
+	// them. It is off by default, because a session can run commands.
+	OpenChamberControl bool `toml:"openchamber_control"`
 	// RemoteInput lets the phone move the pointer and type on this
 	// computer. It is off by default, because the phone can then type in
 	// any window, such as a terminal.
@@ -116,7 +123,7 @@ var mu sync.Mutex
 func Load() (*Config, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	c := &Config{AutoClipboard: true, Notifications: true, ShareHome: true, PauseMediaOnCall: true, SyncDnd: true, Herdr: true}
+	c := &Config{AutoClipboard: true, Notifications: true, ShareHome: true, PauseMediaOnCall: true, SyncDnd: true, Herdr: true, OpenChamber: true}
 	data, err := os.ReadFile(Path())
 	if errors.Is(err, os.ErrNotExist) {
 		c.Commands = []Command{}

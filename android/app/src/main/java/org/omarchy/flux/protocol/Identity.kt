@@ -69,6 +69,9 @@ object Types {
     /** Flux extension: the computer sends its herdr agents, and this phone asks for their output. Both sides send it. */
     const val FLUX_HERDR = "flux.herdr"
 
+    /** Flux extension: the computer sends its OpenChamber sessions, and this phone asks for their messages and answers them. Both sides send it. */
+    const val FLUX_OPENCHAMBER = "flux.openchamber"
+
     /** Flux extension: an image that one side copied, as the payload, with {"mime": "image/png"}. Both sides send it. */
     const val FLUX_CLIPBOARD_IMAGE = "flux.clipboard.image"
 
@@ -93,6 +96,7 @@ val INCOMING = listOf(
     Types.SFTP, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
     Types.FLUX_THEME, Types.FLUX_HERDR, Types.FLUX_INPUT, Types.FLUX_DESKTOP, Types.FLUX_SHORTCUTS,
+    Types.FLUX_OPENCHAMBER,
 )
 
 /** Packet types that the phone sends. */
@@ -102,7 +106,7 @@ val OUTGOING = listOf(
     Types.MPRIS_REQUEST, Types.SFTP_REQUEST, Types.TELEPHONY, Types.FLUX_TUNNEL, Types.FLUX_WEBCAM, Types.FLUX_DND,
     Types.FLUX_MIC, Types.FLUX_SCREEN, Types.FLUX_APPROVE, Types.FLUX_EYEC, Types.FLUX_MIC_SPEAKER,
     Types.FLUX_THEME_REQUEST, Types.FLUX_HERDR, Types.FLUX_CLIPBOARD_IMAGE, Types.MOUSEPAD_REQUEST,
-    Types.FLUX_DESKTOP, Types.FLUX_SHORTCUTS,
+    Types.FLUX_DESKTOP, Types.FLUX_SHORTCUTS, Types.FLUX_OPENCHAMBER,
 )
 
 /**

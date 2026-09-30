@@ -233,12 +233,21 @@ object FluxCore {
 
     /**
      * Handles 1 packet on the read thread of the link. The output of a herdr
-     * pane can have 1000 lines, so its parse runs before the core lock.
+     * pane can have 1000 lines and the messages of an OpenChamber session
+     * can be long, so their parse runs before the core lock.
      */
     private fun receive(d: Device, p: Packet) {
-        val output = if (p.type == Types.FLUX_HERDR) parseHerdrOutput(p.body) else null
+        val output = when (p.type) {
+            Types.FLUX_HERDR -> parseHerdrOutput(p.body)
+            Types.FLUX_OPENCHAMBER -> parseOpenChamberOutput(p.body)
+            else -> null
+        }
         locked {
-            if (output != null && d.paired) HerdrSync.onOutput(d, output) else dispatch(d, p)
+            when {
+                output is HerdrOutput && d.paired -> HerdrSync.onOutput(d, output)
+                output is OpenChamberOutput && d.paired -> OpenChamberSync.onOutput(d, output)
+                else -> dispatch(d, p)
+            }
         }
     }
 
@@ -281,6 +290,7 @@ object FluxCore {
                 smsSupported = smsSupported,
                 agentInputAlerts = settings.agentInputAlerts,
                 agentDoneAlerts = settings.agentDoneAlerts,
+                openChamberRich = settings.openChamberRich,
                 ringingFrom = ringingFrom,
                 browse = browse,
                 listeningUdp = backend?.listeningUdp ?: true,
@@ -414,6 +424,12 @@ object FluxCore {
 
     fun setAgentDoneAlerts(on: Boolean) {
         settings.agentDoneAlerts = on
+        publish()
+    }
+
+    /** Draws the messages of an OpenChamber session as rich cards instead of plain lines. */
+    fun setOpenChamberRich(on: Boolean) {
+        settings.openChamberRich = on
         publish()
     }
 

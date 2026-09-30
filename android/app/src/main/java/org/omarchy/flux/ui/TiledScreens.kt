@@ -506,6 +506,13 @@ fun TiledHomeScreen(
             add(SyncItem(Ic.notificationsActive, "Agent needs input", state.agentInputAlerts) { FluxCore.setAgentInputAlerts(!state.agentInputAlerts) })
             add(SyncItem(Ic.checkCircle, "Agent finished", state.agentDoneAlerts) { FluxCore.setAgentDoneAlerts(!state.agentDoneAlerts) })
         }
+        // The session alerts use the same switches as the herdr agents. The
+        // output mode applies to every computer.
+        if (d.openChamberSupported) {
+            add(SyncItem(Ic.notificationsActive, "Session needs input", state.agentInputAlerts) { FluxCore.setAgentInputAlerts(!state.agentInputAlerts) })
+            add(SyncItem(Ic.checkCircle, "Session finished", state.agentDoneAlerts) { FluxCore.setAgentDoneAlerts(!state.agentDoneAlerts) })
+            add(SyncItem(Ic.text, "Rich session output", state.openChamberRich) { FluxCore.setOpenChamberRich(!state.openChamberRich) })
+        }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = TiledGutter)) {
@@ -540,6 +547,12 @@ fun TiledHomeScreen(
                     MiniTile(
                         Ic.agent, "Agents", Tn.magenta, guarded { onNavigate("agents") }, Modifier.weight(1f).fillMaxHeight(), on,
                         badge = if (on) d.herdr?.blocked ?: 0 else 0,
+                    )
+                }
+                if (d.openChamberSupported) {
+                    MiniTile(
+                        Ic.agent, "Sessions", Tn.magenta, guarded { onNavigate("sessions") }, Modifier.weight(1f).fillMaxHeight(), on,
+                        badge = if (on) d.openChamber?.blocked ?: 0 else 0,
                     )
                 }
             }

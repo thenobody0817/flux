@@ -88,7 +88,7 @@ private const val WORKING_REFRESH_MS = 5_000L
 
 @Composable
 @ReadOnlyComposable
-private fun statusColor(s: AgentStatus): Color = when (s) {
+internal fun statusColor(s: AgentStatus): Color = when (s) {
     AgentStatus.Blocked -> Tn.red
     AgentStatus.Done -> Tn.green
     AgentStatus.Working -> Tn.blue
@@ -105,7 +105,7 @@ private fun statusLabel(s: AgentStatus): String = when (s) {
 
 /** The status dot and the mono status label of an agent. */
 @Composable
-private fun StatusLine(s: AgentStatus) {
+internal fun StatusLine(s: AgentStatus) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Dot(statusColor(s), 7.dp)
         TileLabel(statusLabel(s), color = statusColor(s))

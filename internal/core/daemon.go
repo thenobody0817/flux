@@ -23,6 +23,7 @@ import (
 	"flux/internal/desktop"
 	"flux/internal/herdr"
 	"flux/internal/lan"
+	"flux/internal/openchamber"
 	"flux/internal/proto"
 )
 
@@ -103,6 +104,16 @@ type Daemon struct {
 	herdrKinds   []string
 	herdrHistory map[string][]string
 	herdrWake    chan struct{}
+
+	// oc is the OpenChamber API client. ocRunning, ocAgents, and ocKinds
+	// are the last state that the OpenChamber loop read. ocWake makes the
+	// loop check the setting and read the sessions again.
+	oc        *openchamber.Client
+	ocRunning bool
+	ocAgents  []OpenChamberAgent
+	ocKinds   []OpenChamberKind
+	ocDirs    []string
+	ocWake    chan struct{}
 
 	subs   map[int]func(event string, data any)
 	nextID int
@@ -194,6 +205,9 @@ func New(ctx context.Context, logger *log.Logger, opts Options) (*Daemon, error)
 		herdrPath: herdr.SocketPath(),
 		herdrWake: make(chan struct{}, 1),
 		dndWake:   make(chan struct{}, 1),
+
+		oc:     openchamber.New(),
+		ocWake: make(chan struct{}, 1),
 	}
 	if opts.Headless {
 		d.clip = &memClipboard{}
@@ -331,6 +345,7 @@ func (d *Daemon) Run() error {
 	go d.discoveryLoop(ctx)
 	go d.batteryLoop(ctx)
 	go d.herdrLoop(ctx)
+	go d.openchamberLoop(ctx)
 
 	<-ctx.Done()
 	d.closeLinks()
@@ -723,6 +738,12 @@ func (d *Daemon) onPairedLink(dev *Device, l *lan.Link) {
 	if dev.accepts(proto.TypeFluxHerdr) {
 		d.mu.Lock()
 		state := herdrStatePacket(d.herdrViewLocked())
+		d.mu.Unlock()
+		_ = l.Send(state)
+	}
+	if dev.accepts(proto.TypeFluxOpenChamber) {
+		d.mu.Lock()
+		state := openchamberStatePacket(d.openchamberViewLocked())
 		d.mu.Unlock()
 		_ = l.Send(state)
 	}

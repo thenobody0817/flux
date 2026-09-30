@@ -173,6 +173,23 @@ The `herdr` field of the state has `enabled`, `running`, `control`, `terminals`,
 `HERDR_SOCKET_PATH` selects a herdr session other than the default.
 
 Replies, new agents, and closes from the phone need `herdr_control = true`.
+
+## OpenChamber sessions
+
+`fluxd` sends the OpenChamber sessions of the computer to Flux for Android.
+Read `docs/openchamber.md` for the phone screens, the notifications, and the wire format.
+
+```sh
+flux-cli doctor
+flux-cli status --json
+journalctl --user -u fluxd --no-pager | grep openchamber
+```
+
+The `openchamber` field of the state has `enabled`, `running`, `control`, `agents`, `kinds`, and `dirs`.
+`fluxd` and OpenChamber must run as the same user.
+`OPENCHAMBER_PORT` selects a port other than the one in the OpenChamber settings.
+
+Replies, answers, new sessions, and closes from the phone need `openchamber_control = true`.
 A reply can make an agent run commands on the computer.
 Do not turn on `herdr_control` unless the user asks for replies from the phone.
 

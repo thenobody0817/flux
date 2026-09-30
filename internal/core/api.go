@@ -117,23 +117,26 @@ func (d *Daemon) Snapshot() json.RawMessage {
 		"transfers": transfers,
 		"commands":  commands,
 		"settings": map[string]any{
-			"autoClipboard":    d.cfg.AutoClipboard,
-			"notifications":    d.cfg.Notifications,
-			"shareHome":        d.cfg.ShareHome,
-			"pauseMediaOnCall": d.cfg.PauseMediaOnCall,
-			"downloadDir":      d.cfg.DownloadPath(),
-			"syncDnd":          d.cfg.SyncDnd,
-			"herdr":            d.cfg.Herdr,
-			"herdrControl":     d.cfg.HerdrControl,
-			"herdrTerminals":   d.cfg.HerdrTerminals,
-			"remoteInput":      d.cfg.RemoteInput,
-			"remoteDesktop":    d.cfg.RemoteDesktop,
+			"autoClipboard":      d.cfg.AutoClipboard,
+			"notifications":      d.cfg.Notifications,
+			"shareHome":          d.cfg.ShareHome,
+			"pauseMediaOnCall":   d.cfg.PauseMediaOnCall,
+			"downloadDir":        d.cfg.DownloadPath(),
+			"syncDnd":            d.cfg.SyncDnd,
+			"herdr":              d.cfg.Herdr,
+			"herdrControl":       d.cfg.HerdrControl,
+			"herdrTerminals":     d.cfg.HerdrTerminals,
+			"openchamber":        d.cfg.OpenChamber,
+			"openchamberControl": d.cfg.OpenChamberControl,
+			"remoteInput":        d.cfg.RemoteInput,
+			"remoteDesktop":      d.cfg.RemoteDesktop,
 		},
-		"webcam":  d.webcamViewLocked(),
-		"mic":     d.micViewLocked(),
-		"screen":  d.screenViewLocked(),
-		"desktop": d.desktopViewLocked(),
-		"herdr":   d.herdrViewLocked(),
+		"webcam":      d.webcamViewLocked(),
+		"mic":         d.micViewLocked(),
+		"screen":      d.screenViewLocked(),
+		"desktop":     d.desktopViewLocked(),
+		"herdr":       d.herdrViewLocked(),
+		"openchamber": d.openchamberViewLocked(),
 	})
 }
 
@@ -427,6 +430,10 @@ func (d *Daemon) setSetting(key string, value any) error {
 		d.cfg.HerdrControl = b
 	case key == "herdrTerminals" && isBool:
 		d.cfg.HerdrTerminals = b
+	case key == "openchamber" && isBool:
+		d.cfg.OpenChamber = b
+	case key == "openchamberControl" && isBool:
+		d.cfg.OpenChamberControl = b
 	case key == "remoteInput" && isBool:
 		d.cfg.RemoteInput = b
 	case key == "remoteDesktop" && isBool:
@@ -449,6 +456,9 @@ func (d *Daemon) setSetting(key string, value any) error {
 	}
 	if key == "herdr" || key == "herdrControl" || key == "herdrTerminals" {
 		d.herdrChanged()
+	}
+	if key == "openchamber" || key == "openchamberControl" {
+		d.openchamberChanged()
 	}
 	if key == "remoteInput" || key == "remoteDesktop" {
 		d.inputChanged()
@@ -517,6 +527,7 @@ func (d *Daemon) Reload() error {
 	d.mu.Unlock()
 	d.commandsChanged()
 	d.herdrChanged()
+	d.openchamberChanged()
 	d.inputChanged()
 	d.wakeDnd()
 	return nil

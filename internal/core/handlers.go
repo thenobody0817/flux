@@ -95,6 +95,8 @@ func (d *Daemon) handlePacket(dev *Device, l *lan.Link, p *proto.Packet) {
 		d.handleThemeRequest(dev, p)
 	case proto.TypeFluxHerdr:
 		d.handleHerdr(dev, l, p)
+	case proto.TypeFluxOpenChamber:
+		d.handleOpenChamber(dev, l, p)
 	case proto.TypeMousepadRequest:
 		d.handleMousepad(dev, p)
 	case proto.TypeSmsMessages:
